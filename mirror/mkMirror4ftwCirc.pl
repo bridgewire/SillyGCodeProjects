@@ -3,192 +3,206 @@
 use strict;
 use warnings;
 
-my $stpsz  = 0.25;
-my $mult   = 1; # 100;
-my $fcllen = 18;
-my ($x1, $x2, $y1, $y2);
+use KoikeCustom;
 
-my $do_svg = grep(/--svg/, @ARGV);
-if( (my @l = grep(/--mult=-?[0-9.]+/, @ARGV)) ){ $l[0] =~ /--mult=(-?[0-9.]+)/; $mult=$1; }
+# usage: mkMirror4ftwCirc.pl [--svg] [--mult=<mult>]
+#        where <prot> := "gcode" | "svg"
+#        and   <mult> := float;                 (scales drawing.)
 
 
-if( $do_svg ) { &start_svg_html( $mult ); }
-else          { &start_koike_gcode( $mult, $fcllen ); }
+# the parabola is generated so that its vertex is at the origin (0,0) and
+# afterward offsets and the scaling multiplier are applied.  I think this is
+# the most natural coordinate frame.  The circle, then, in the same coordinate
+# frame would have its center as (x,y)==(0,18) because its center is at the
+# focal point of the parabola.  So, we start with the parabola and circle
+# situated properly with respect to each other, but distant from their needed
+# positions and sizes in the svg or koike frames. We give the offsets, and
+# scaling factor (mult) to the KoikeCustom module and it uses them to alter all
+# points, of the circle and parabola.
+our %pconst = ( negative=>1, focallength=>18, stepsize=>0.25, negative=> 1, xoffset=>-24, yoffset=>-8 );
+our %cconst = ( negative=>1, cx=>0, cy=>18, radius=>28, sweep => 0, largearc => 0 );
+our %argv   = ( do_svg=>0, mult=>1 );
 
-for( my $i=0; $i<48; $i+=$stpsz )
-{ 
-    if( $do_svg )
-    {
-        $x1 = $i;
-        $x2 = $x1 + $stpsz; # the next step
 
-        $y1 = &p( $fcllen, $x1, -1, 8, 24 );
-        $y2 = &p( $fcllen, $x2, -1, 8, 24 );
+# process command-line arguments
+$argv{'do_svg'} = grep(/--svg/, @ARGV);
+if( (my @l = grep(/--mult=-?[0-9.]+/, @ARGV)) ){ $l[0] =~ /--mult=(-?[0-9.]+)/; $argv{mult} = $1; }
 
-        printf('<line x1="%.03f" y1="%.03f" x2="%.03f" y2="%.03f" style="stroke:rgb(255,0,0);stroke-width:1" />%s',
-            $x1*$mult, $y1*$mult, $x2*$mult, $y2*$mult, "\n");
-    }
-    else
-    {
-        $x1 = -$i;
-        $x2 = $x1 - $stpsz; # the next step
+# the svg and koike coordinate frames are different. alter the contants to move between coord. frames.
+if( $argv{'do_svg'} )
+{
+    # for clarity in svg, nudge the offsets away from the edge of the image.
+    $pconst{xoffset} -= 5;  $pconst{yoffset} -= 5;
 
-        $y1 = &p( $fcllen, $x1, 1, -8, -24 );
-        $y2 = &p( $fcllen, $x2, 1, -8, -24 );
+    $pconst{negative} *= -1;  $pconst{xoffset} *= -1;  $pconst{yoffset} *= -1;
+    $cconst{negative} *= -1;                           $cconst{cy} *= -1;
+    $cconst{sweep} = 1;  # "positive" angle is clockwise.  woops!!
 
-        # koike g-code instead
-        &gcode_step( $x1, $y1, $x2, $y2, $mult, ( $i+$stpsz >= 48 ) );
-    }
+    # XXX sweep == 1 means move in the CLOCKWISE direction.  the docs say
+    # clockwise is "positive" ... grr.  oh!  the convention is that the x-axis
+    # is the position of the zero angle and that an angle growing from there
+    # toward the positive y-axis is positive.  The y-axis grows from top to
+    # bottom in the svg system (as is usual in image libraries) so the sign of
+    # an angle is expressed as increasing in the clockwise direction.  weird.
+    #
+    # XXX In the gcode piece I use sweep == 1, positive angle, to mean counter-
+    # clockwise, which if seen from above the koike positive angle is indeed
+    # counterclockwise.  This might be confusing.  What to do about this?
 }
 
 
+&main();
 
-if( $do_svg ) { &end_svg_html(); }
-else          { &end_koike_gcode($mult, $fcllen, $x1, $x2, $y1, $y2); }
-
-
-sub gcode_step($$$$$$)
+sub main()
 {
-    my $x1 = shift;
-    my $y1 = shift;
-    my $x2 = shift;
-    my $y2 = shift;
-    my $mult = shift;
-    my $dox2 = shift;
+    our %pconst;
+    our %argv;
 
-    printf('X%.03f Y%.03f%s', $x1*$mult, $y1*$mult, "\n");
-    if( $dox2 )
+    my $k = new KoikeCustom(
+        protocol      => ( $argv{'do_svg'} ? 'svg' : 'gcode'),
+        moveto_color  => 'rgb(0,0,200)',
+
+        multsclr      => $argv{mult},
+
+        xoffset       => $pconst{xoffset},
+        yoffset       => $pconst{yoffset}
+    );
+
+    # svg only
+    $k->set_height_width(100,100);
+
+    my $x_zero = 24;
+    my $y_zero =  8;
+
+    $k->set_rectagular_material_bounds( -$x_zero, -$y_zero, $x_zero, 4*$x_zero -$y_zero );
+
+    $k->update_position( $x_zero, &p($x_zero) ); # initialize position. this becomes 0,0 in gcode
+    $k->moveto( $x_zero + 2, &p($x_zero + 2) );  # fast motion to point outside cut area, on parabola
+
+    for( my $i = $x_zero + 1; $i >= -1 - $x_zero; $i -= $pconst{stepsize} )
     {
-        printf('X%.03f Y%.03f%s', $x2*$mult, $y2*$mult, "\n");
+        my $x = $i;
+
+        if( $x ==  $x_zero - $pconst{stepsize} ) { $k->mark_start(); }
+        if( $x == -$x_zero - $pconst{stepsize} ) { $k->mark_end(); }
+
+        $k->lineto( $x, &p($x) );
     }
+
+    my $outside_x = 26;
+     
+    $k->moveto(-$outside_x, &p(-$outside_x) );   # move to a point where free x-motion is possible
+    $k->moveto( $outside_x, &p( $outside_x) );   # we will cut the circle, also, along a path away
+    $k->moveto( $x_zero + 1, &c( $x_zero + 1) ); # from the op. So go home.
+
+    $k->arcto( newx=>$x_zero, newy=>&c($x_zero), 
+        sweep    => $cconst{sweep},
+        largearc => $cconst{largearc},
+        radius   => $cconst{radius},
+        cx => $cconst{cx}, 
+        cy => $cconst{cy}
+    );
+
+
+    $k->mark_start();
+
+    # cut the circle
+    $k->arcto( newx=>$x_zero-10, newy=>&c($x_zero-10), 
+        sweep    => $cconst{sweep},
+        largearc => $cconst{largearc},
+        radius   => $cconst{radius},
+        cx => $cconst{cx}, 
+        cy => $cconst{cy} );
+
+    $k->mark_end();
+
+    # find the position of the bottom of the platform.
+    # modifying return value from c() requires use of cconst
+    my $platformy = &c(0) - $cconst{negative} * 4;
+    my $platformy_plus1 = &c(0) - $cconst{negative} * 3;
+
+    $k->mark_start('rgb(180,0,180)');
+    $k->lineto( $x_zero, $platformy_plus1 );
+    $k->mark_end();
+    $k->lineto( $x_zero +    1, $platformy_plus1 );
+    $k->moveto( $x_zero +    1, &c($x_zero-10) );
+    $k->moveto( $x_zero - 9.75, &c($x_zero-10) );
+    $k->lineto( $x_zero -   10, &c($x_zero-10) );
+
+    $k->arcto( newx=>-$x_zero, newy=>&c(-$x_zero), 
+        sweep    => $cconst{sweep},
+        largearc => $cconst{largearc},
+        radius   => $cconst{radius},
+        cx => $cconst{cx}, 
+        cy => $cconst{cy} );
+
+    $k->mark_end();
+
+    $k->arcto( newx=>-$outside_x, newy=>&c(-$outside_x), 
+        sweep    => $cconst{sweep},
+        largearc => $cconst{largearc},
+        radius   => $cconst{radius},
+        cx => $cconst{cx}, 
+        cy => $cconst{cy} );
+
+    $k->moveto( -$outside_x,  $platformy_plus1 );
+    $k->moveto( -1 - $x_zero, $platformy_plus1 );
+    $k->lineto(     -$x_zero, $platformy_plus1 );
+    $k->mark_start();
+    $k->lineto( -22, &c(-22) );
+    $k->mark_end();
+    $k->lineto( -23, &c(-22) );
+
+    $outside_x += .5;
+
+    $k->moveto( -$outside_x, &c(-22) );
+
+    $k->moveto( -$outside_x, &c(-$outside_x) ); # away from material, along the path
+    $k->moveto( -$outside_x, &p(-$outside_x) ); # move to a point where free x-motion is possible
+    $k->moveto(  $outside_x, &p( $outside_x) ); # move back toward the operator.
+
+    # these moves use "outside_x" but there's lineto() in here that cuts the material.
+    # it moves from an outside point to another outside point cutting all along the way.
+    $k->moveto( $outside_x, $platformy );
+    $k->moveto( $x_zero + 1,$platformy );
+    $k->lineto( $x_zero,    $platformy );
+    $k->mark_start();
+    $k->lineto(-$x_zero,    $platformy );
+    $k->mark_end();
+    $k->lineto(-$x_zero - 1,$platformy );
+    $k->moveto(-$outside_x, $platformy );
+
+#    # post circle motions
+#    $k->lineto( 0, 0 );                        # slowly back to the starting position
+
+    $k->printall();
 }
 
 # parabola
-sub p($$$$$)
+sub p($)
 { 
-    my $f=shift;
     my $x=shift;
-    my $neg=shift;
-    my $yoffset=shift;
-    my $xoffset=shift;
+    our %pconst;
 
-    return $neg*(($x-$xoffset)**2)/(4.0*$f) + $yoffset;
+    #return $pconst{negative} * ( ( $x - $pconst{xoffset} )**2) / (4.0 * $pconst{focallength}) + $pconst{yoffset} ;
+    return  $pconst{negative} * ($x**2) / (4.0 * $pconst{focallength});
 } 
 
-sub start_svg_html($)
-{
-    my $mult = shift;
+# circle
+sub c($)
+{ 
+    my $x=shift;
+    our %cconst;
 
-    my $h = 20 * $mult;
-    my $w = 50 * $mult;
+    # (x - cx)**2 + (y - cy)**2 = r**2
+    # (y - cy)**2 = r**2 - (x - cx)**2
+    # y - cy = (+/-)sqrt(r**2 - (x - cx)**2)
+    # y = (+/-)sqrt(r**2 - (x - cx)**2) + cy
+    # circle top-half:  y = sqrt(r**2 - (x - cx)**2) + cy
+    # circle bottom-half:  y = cy - sqrt(r**2 - (x - cx)**2) 
+    # we want the bottom half so multiply the sqrt() by -1
 
-    my $aw = 48 * $mult; # actual width
+    return -1 * $cconst{negative} * sqrt( $cconst{radius}**2 - ($x - $cconst{cx})**2) + $cconst{cy} ;
+} 
 
-    my $cr = 28 * $mult;
-    my $cystart = 4 * $mult;
-
-    print <<"EOF";
-
-<!DOCTYPE html>
-<html>
- <body>
-
-<svg height="$h" width="$w">
-
-<path d="M0 0 L0 $cystart A$cr,$cr 0 0,0  $aw,$cystart L$aw 0" style="stroke:rgb(255,0,0);stroke-width:1;fill:none" />
-
-EOF
-
-}
-
-sub end_svg_html()
-{
-    print <<"EOF";
-
-      Sorry, your browser does not support inline SVG.
- </svg>
-
- </body>
-</html>
-
-EOF
-
-}
-
-
-##########################################################################################
-##########################################################################################
-##########################################################################################
-###### README
-##########################################################################################
-##########################################################################################
-sub start_koike_gcode($$)
-{
-    my $mult = shift;
-    my $fcllen = shift;
-
-    # REQUIRED!!!!!
-    # 1. when the program starts, Koike's coords are set to 0,0
-    # 2. 0,0 are the true coordinates of the starting cut point
-    # 3. The starting cut point next to the operator and will cut
-    #    in the negative x-direction (away from the op.) and in
-    #    the negative y-direction (toward the op.).
-    # 4. The first cut is the parabola.
-    # 5. start with cutter off, move AWAY from the cut start
-    #    point, along the parabola, then switch to G01 and start
-    #    the cut.  this move away is intended to give the op.
-    #    a chance to properly set up the cutting wire.
-
-    my $x1 = 2;
-    my $x2 = 1.5;
-    my $y1 = &p( $fcllen, $x1, 1, -8, -24 );
-    my $y2 = &p( $fcllen, $x2, 1, -8, -24 );
-
-    print <<"EOF";
-*
-M08
-M16
-G20
-G40
-G90
-EOF
-
-    print "G00\n";
-    &gcode_step($x1, $y1, undef, undef, $mult, 0);
-
-    # begin the slow walk
-    print "G01\n";
-    &gcode_step($x2, $y2, undef, undef, $mult, 0);
-}
-
-sub end_koike_gcode($$$$$$)
-{
-    my $mult = shift;
-    my $fcllen = shift;
-    my $x1 = shift;
-    my $x2 = shift;
-    my $y1 = shift;
-    my $y2 = shift;
-
-    $x1 = $x2 - 2;
-    $y1 = &p( $fcllen, $x1, 1, -8, -24 );
-    &gcode_step($x1, $y1, undef, undef, $mult, 0);
-
-    # switch to fast motion
-    print "G00\n";
-
-    &gcode_step($x1, 5, undef, undef, $mult, 0);
-
-    print <<"EOF";
-G00 X2.000 Y5.000
-G00 X2.000 Y0.3923
-G01
-G02 X-50 Y0.3923 I-52 J0
-G00 X$x1 Y5.000
-G00 X2.000 Y5.000
-G00 X2.000 Y0.000
-G01 X0.000 Y0.000
-M30
-EOF
-
-}
+# /* vim: set ai et tabstop=4  shiftwidth=4: */
