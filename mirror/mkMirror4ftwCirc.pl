@@ -1,9 +1,10 @@
-#!/usr/bin/perl -w
+#!/usr/bin/perl -w -I..
 
 use strict;
 use warnings;
 
-use KoikeCustom;
+use Koike;
+use Koike::Part;
 
 # usage: mkMirror4ftwCirc.pl [--svg] [--mult=<mult>]
 #        where <prot> := "gcode" | "svg"
@@ -58,14 +59,15 @@ sub main()
     our %pconst;
     our %argv;
 
-    my $k = new KoikeCustom(
+    my $k = new Koike(
         protocol      => ( $argv{'do_svg'} ? 'svg' : 'gcode'),
         moveto_color  => 'rgb(0,0,200)',
 
         multsclr      => $argv{mult},
 
         xoffset       => $pconst{xoffset},
-        yoffset       => $pconst{yoffset}
+        yoffset       => $pconst{yoffset},
+        #debug         => 1,
     );
 
     # svg only
@@ -77,25 +79,28 @@ sub main()
     $k->set_rectagular_material_bounds( -$x_zero, -$y_zero, $x_zero, 4*$x_zero -$y_zero );
 
     $k->update_position( $x_zero, &p($x_zero) ); # initialize position. this becomes 0,0 in gcode
-    $k->moveto( $x_zero + 2, &p($x_zero + 2) );  # fast motion to point outside cut area, on parabola
+
+
+    my $p = new Koike::Part( koikeobj=>$k );
+    $p->moveto( $x_zero + 2, &p($x_zero + 2) );  # fast motion to point outside cut area, on parabola
 
     for( my $i = $x_zero + 1; $i >= -1 - $x_zero; $i -= $pconst{stepsize} )
     {
         my $x = $i;
 
-        if( $x ==  $x_zero - $pconst{stepsize} ) { $k->mark_start(); }
-        if( $x == -$x_zero - $pconst{stepsize} ) { $k->mark_end(); }
+        if( $x ==  $x_zero - $pconst{stepsize} ) { $p->mark_start(); }
+        if( $x == -$x_zero - $pconst{stepsize} ) { $p->mark_end(); }
 
-        $k->lineto( $x, &p($x) );
+        $p->lineto( $x, &p($x) );
     }
 
     my $outside_x = 26;
      
-    $k->moveto(-$outside_x, &p(-$outside_x) );   # move to a point where free x-motion is possible
-    $k->moveto( $outside_x, &p( $outside_x) );   # we will cut the circle, also, along a path away
-    $k->moveto( $x_zero + 1, &c( $x_zero + 1) ); # from the op. So go home.
+    $p->moveto(-$outside_x, &p(-$outside_x) );   # move to a point where free x-motion is possible
+    $p->moveto( $outside_x, &p( $outside_x) );   # we will cut the circle, also, along a path away
+    $p->moveto( $x_zero + 1, &c( $x_zero + 1) ); # from the op. So go home.
 
-    $k->arcto( newx=>$x_zero, newy=>&c($x_zero), 
+    $p->arcto( newx=>$x_zero, newy=>&c($x_zero), 
         sweep    => $cconst{sweep},
         largearc => $cconst{largearc},
         radius   => $cconst{radius},
@@ -104,77 +109,83 @@ sub main()
     );
 
 
-    $k->mark_start();
+    $p->mark_start();
 
     # cut the circle
-    $k->arcto( newx=>$x_zero-10, newy=>&c($x_zero-10), 
+    $p->arcto( newx=>$x_zero-10, newy=>&c($x_zero-10), 
         sweep    => $cconst{sweep},
         largearc => $cconst{largearc},
         radius   => $cconst{radius},
         cx => $cconst{cx}, 
         cy => $cconst{cy} );
 
-    $k->mark_end();
+    $p->mark_end();
 
     # find the position of the bottom of the platform.
     # modifying return value from c() requires use of cconst
     my $platformy = &c(0) - $cconst{negative} * 4;
     my $platformy_plus1 = &c(0) - $cconst{negative} * 3;
 
-    $k->mark_start('rgb(180,0,180)');
-    $k->lineto( $x_zero, $platformy_plus1 );
-    $k->mark_end();
-    $k->lineto( $x_zero +    1, $platformy_plus1 );
-    $k->moveto( $x_zero +    1, &c($x_zero-10) );
-    $k->moveto( $x_zero - 9.75, &c($x_zero-10) );
-    $k->lineto( $x_zero -   10, &c($x_zero-10) );
+    $p->mark_start('rgb(180,0,180)');
+    $p->lineto( $x_zero, $platformy_plus1 );
+    $p->mark_end();
+    $p->lineto( $x_zero +    1, $platformy_plus1 );
+    $p->moveto( $x_zero +    1, &c($x_zero-10) );
+    $p->moveto( $x_zero - 9.75, &c($x_zero-10) );
+    $p->lineto( $x_zero -   10, &c($x_zero-10) );
 
-    $k->arcto( newx=>-$x_zero, newy=>&c(-$x_zero), 
+    $p->arcto( newx=>-$x_zero, newy=>&c(-$x_zero), 
         sweep    => $cconst{sweep},
         largearc => $cconst{largearc},
         radius   => $cconst{radius},
         cx => $cconst{cx}, 
         cy => $cconst{cy} );
 
-    $k->mark_end();
+    $p->mark_end();
 
-    $k->arcto( newx=>-$outside_x, newy=>&c(-$outside_x), 
+    $p->arcto( newx=>-$outside_x, newy=>&c(-$outside_x), 
         sweep    => $cconst{sweep},
         largearc => $cconst{largearc},
         radius   => $cconst{radius},
         cx => $cconst{cx}, 
         cy => $cconst{cy} );
 
-    $k->moveto( -$outside_x,  $platformy_plus1 );
-    $k->moveto( -1 - $x_zero, $platformy_plus1 );
-    $k->lineto(     -$x_zero, $platformy_plus1 );
-    $k->mark_start();
-    $k->lineto( -22, &c(-22) );
-    $k->mark_end();
-    $k->lineto( -23, &c(-22) );
+    $p->moveto( -$outside_x,  $platformy_plus1 );
+    $p->moveto( -1 - $x_zero, $platformy_plus1 );
+    $p->lineto(     -$x_zero, $platformy_plus1 );
+    $p->mark_start();
+    $p->lineto( -22, &c(-22) );
+    $p->mark_end();
+    $p->lineto( -23, &c(-22) );
 
     $outside_x += .5;
 
-    $k->moveto( -$outside_x, &c(-22) );
+    $p->moveto( -$outside_x, &c(-22) );
 
-    $k->moveto( -$outside_x, &c(-$outside_x) ); # away from material, along the path
-    $k->moveto( -$outside_x, &p(-$outside_x) ); # move to a point where free x-motion is possible
-    $k->moveto(  $outside_x, &p( $outside_x) ); # move back toward the operator.
+    $p->moveto( -$outside_x, &c(-$outside_x) ); # away from material, along the path
+    $p->moveto( -$outside_x, &p(-$outside_x) ); # move to a point where free x-motion is possible
+    $p->moveto(  $outside_x, &p( $outside_x) ); # move back toward the operator.
 
     # these moves use "outside_x" but there's lineto() in here that cuts the material.
     # it moves from an outside point to another outside point cutting all along the way.
-    $k->moveto( $outside_x, $platformy );
-    $k->moveto( $x_zero + 1,$platformy );
-    $k->lineto( $x_zero,    $platformy );
-    $k->mark_start();
-    $k->lineto(-$x_zero,    $platformy );
-    $k->mark_end();
-    $k->lineto(-$x_zero - 1,$platformy );
-    $k->moveto(-$outside_x, $platformy );
+    $p->moveto( $outside_x, $platformy );
+    $p->moveto( $x_zero + 1,$platformy );
+    $p->lineto( $x_zero,    $platformy );
+    $p->mark_start();
+    $p->lineto(-$x_zero,    $platformy );
+    $p->mark_end();
+    $p->lineto(-$x_zero - 1,$platformy );
+    $p->moveto(-$outside_x, $platformy );
 
-#    # post circle motions
-#    $k->lineto( 0, 0 );                        # slowly back to the starting position
+    # the koike may be set to automatically return to 0,0 when the commands are completed,
+    # and will do it without regard to what it was cutting.  we need to do this safely.
+    $outside_x += .5;   # it's nice to distinguish return-to-zero paths in the drawing.
+    $p->moveto(-$outside_x, $platformy );
+    $p->moveto(-$outside_x, &p(-$outside_x) );
+    $p->moveto( $outside_x, &p( $outside_x) );
+    # now we can move to 0,0 without hitting material still on the table
 
+    $k->add_part( $p );
     $k->printall();
 }
 
