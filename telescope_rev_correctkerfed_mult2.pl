@@ -24,6 +24,7 @@ $k->process_cmdlineargs( @ARGV );
 
 
 
+################################################################################################################  spars
 my $p = &make_scope_spar($k, 0, 0);
 $k->add_part($p); 
 
@@ -36,35 +37,38 @@ $p1->rotate(180,'degrees');
 $p1->translate( $xsize, 1.5 * $ysize );
 $k->add_part($p1); 
 
-my ( $outer_radius, $inner_radius, $center_x, $center_y, $notch_wid, $notch_dpt );
+my $p2 = $p->copy();
+$p2->translate( 0, 1.8 * $ysize );
+$k->add_part($p2); 
 
+my $p3 = $p1->copy();
+$p3->translate( 0 , 1.8 * $ysize );
+$k->add_part($p3); 
+################################################################################################################  spars
+
+
+################################################################################################################  rings
+my ( $outer_radius, $inner_radius, $center_x, $center_y, $notch_wid, $notch_dpt );
 
 # end stop ring
 ( $outer_radius, $inner_radius ) = ( (1.5 * 25.4)/2, 25.4/2 );
-( $center_x, $center_y ) = ( $outer_radius + 2, 1.5 * $ysize + $outer_radius + 2 );
-( $notch_wid, $notch_dpt ) = ( 3.1, 0.75 );
+( $center_x, $center_y ) = ( $outer_radius + 1, 3.5 * $ysize + $outer_radius + 2 );
+( $notch_wid, $notch_dpt ) = ( 3.1, 1.575 );
 $k->add_part( &notched4_ring( $k, $center_x, $center_y, $inner_radius, $outer_radius, $notch_wid, $notch_dpt, $kerf ) );
 
 
 # interior stop ring
-
 ( $outer_radius, $inner_radius ) = ( (1.5 * 25.4)/2, 25.4/2 );
-( $center_x, $center_y ) = ( 2*($outer_radius + 2), 1.5 * $ysize + $outer_radius + 2 );
-( $notch_wid, $notch_dpt ) = ( 3.1, 0.75 );
+( $center_x, $center_y ) = ( 3*($outer_radius + 1), 3.5 * $ysize + $outer_radius + 2 );
+( $notch_wid, $notch_dpt ) = ( 3.1, 2.375 );
 $k->add_part( &notched4_ring( $k, $center_x, $center_y, $inner_radius, $outer_radius, $notch_wid, $notch_dpt, $kerf ) );
 
-
-
-    $u{x} +=  3.1;
-
-
-#my $p2 = $p->copy();
-#$p2->translate( 0, 1.8 * $ysize );
-#$k->add_part($p2); 
-#
-#my $p3 = $p1->copy();
-#$p3->translate( 0 , 1.8 * $ysize );
-#$k->add_part($p3); 
+# eye piece stop ring
+( $outer_radius, $inner_radius ) = ( (1.5 * 25.4)/2 + 1.4, 8.2 );
+( $center_x, $center_y ) = ( 5*$outer_radius + 1, 3.5 * $ysize + $outer_radius + 2 );
+( $notch_wid, $notch_dpt ) = ( 3.1, 5.138 );
+$k->add_part( &notched4_ring( $k, $center_x, $center_y, $inner_radius, $outer_radius, $notch_wid, $notch_dpt, $kerf ) );
+################################################################################################################  rings
 
 
 $k->printall( $outfile );
@@ -224,3 +228,75 @@ sub notched4_ring()
 
     return $p;
 }
+
+#####################################   this... doesn't work. it's a place holder.  the code within is a copy of notched4_ring()
+#sub notchhold4_ring()
+#{
+#    my $k = shift;   # Koike object
+#
+#    my $xc = shift;  # coords of center
+#    my $yc = shift;
+#
+#    my $ir = shift;  # inner radius
+#    my $or = shift;  # outer radius
+#
+#    my $nw = shift;  # notch width
+#    my $nd = shift;  # notch depth
+#    my $nr = shift;  # notch inner radius position
+#
+#    my $kerf = shift;
+#
+#    die "notch must be non-zero width in notched4_ring()"  if $nw == 0;
+#
+#    my $theta = atan2( ($or + $kerf), (($nw - $kerf)/2.0) );
+#
+#    # the symmetry of the object allows these number or their
+#    # negatives to be used for all notch coordinates
+#    my $notch_u = ($or + $kerf) * cos( $theta ) ;
+#    my $notch_v = ($or + $kerf) * sin( $theta );
+#
+#    #print "theta:$theta or:$or kerf:$kerf notch_u:$notch_u notch_v:$notch_v\n";
+#
+#    
+#
+#    # a complication
+#    # our target object lives in a left-handed coordinate systems
+#    # whereas cos, sin, atan, etc live in a right handed system.
+#    #
+#    # It may be that an easy way to deal with this is to make a 
+#    # notch and an arc, then rotate the object pi/4 and repeat.
+#    # So don't set the center now.  Once the rotations are done
+#    # do a translation.
+#
+#
+#    my $p = new Koike::Part( koikeobj=>$k );
+#
+#    for( my $i = 0; $i < 4; $i++ )
+#    {
+#        # initial position
+#        my( $x, $y );
+#        $x = -$notch_u; $y = $notch_v;                               if( $i == 0 ){ $p->update_position( $x, $y ); }
+#
+#        # notch
+#                            $y -= ($nd + $kerf);                     $p->lineto( $x, $y );
+#        $x = $notch_u;                                               $p->lineto( $x, $y );
+#                            $y += ($nd + $kerf);                     $p->lineto( $x, $y );
+#
+#        # arc
+#        ( $x, $y ) = ( $notch_v, $notch_u );                      
+#
+#        $p->arcto( newx=>$x, newy=>$y, radius=>($or + $kerf), sweep=>0, largearc=>0 );
+#
+#        $p->rotate( 90, 'degrees' );
+#    }
+#
+#    # inner ring
+#    my $kerfed_ir = $ir - $kerf;
+#    $p->update_position( 0, $kerfed_ir );
+#    $p->arcto( newx=>0, newy=>-$kerfed_ir,  radius=>$kerfed_ir, sweep=>0, largearc=>1 );
+#    $p->arcto( newx=>0, newy=> $kerfed_ir,  radius=>$kerfed_ir, sweep=>0, largearc=>1 );
+#
+#    if( $xc != 0 || $yc != 0 ) { $p->translate( $xc, $yc ); }
+#
+#    return $p;
+#}
