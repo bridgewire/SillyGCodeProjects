@@ -8,6 +8,7 @@ use strict;
 
 #use Koike;
 use Math::Trig;
+use Clone qw(clone);
 
 BEGIN
 {
@@ -75,6 +76,72 @@ sub new {
 
     bless($self,$class); # bless me! and all who are like me. bless us everyone.
     return $self;
+}
+
+sub copy()
+{
+    my $self = shift;
+
+    my $c = new Koike::Part( koikeobj => $self->{k} );
+
+    $c->set_otherargs( 
+        startx          => $self->{startx},
+        starty          => $self->{starty},
+        moveto_color    => $self->{moveto_color},
+        cut_color       => $self->{cut_color},
+        multsclr        => $self->{mult},
+        clist           => $self->{clist},
+
+        clist_position  => $self->{clist_position},
+        x => $self->{x},
+        y => $self->{y},
+
+        xmin => $self->{xmin},
+        xmax => $self->{xmax},
+        ymin => $self->{ymin},
+        ymax => $self->{ymax},
+
+        moveto_color => $self->{moveto_color},
+        cut_color => $self->{cut_color},
+
+        mult => $self->{mult},
+
+        mark_start_color  => $self->{mark_start_color},
+        mark_end_color    => $self->{mark_end_color},
+        mark_dot_radius   => $self->{mark_dot_radius}
+    );
+
+    return $c;
+}
+
+sub set_otherargs()
+{
+    my $self = shift;
+
+    my %args = @_;
+
+    $self->{clist}          = clone( $args{clist} );
+    $self->{clist_position} = $args{clist_position};
+
+    $self->{startx} = $args{startx};
+    $self->{starty} = $args{starty};
+
+    $self->{x} = $args{x};
+    $self->{y} = $args{y};
+
+    $self->{xmin} = $args{xmin};
+    $self->{xmax} = $args{xmax};
+    $self->{ymin} = $args{ymin};
+    $self->{ymax} = $args{ymax};
+
+    $self->{moveto_color} = $args{moveto_color};
+    $self->{cut_color}    = $args{cut_color};
+
+    $self->{mult}         = $args{mult};
+
+    $self->{mark_start_color} = $args{mark_start_color};
+    $self->{mark_end_color}   = $args{mark_end_color};
+    $self->{mark_dot_radius}  = $args{mark_dot_radius};
 }
 
 sub rewind_command_list()

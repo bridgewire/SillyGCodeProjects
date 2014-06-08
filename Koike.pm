@@ -32,6 +32,8 @@ sub new {
 
     my %args = @_;
 
+    $self->{eol} = "\r\n";
+
     $self->{DEBUG} = exists($args{debug}) ? $args{debug}    : 10;  # 10 means: no debug messages.
     $self->{p} = exists($args{protocol})  ? $args{protocol} : 'gcode'; # protocol: svg or gcode
     $self->{x} = undef;
@@ -71,6 +73,26 @@ sub new {
 
     bless($self,$class); # bless me! and all who are like me. bless us everyone.
     return $self;
+}
+
+sub p()
+{
+    my $self = shift;
+    my $line = shift;
+    local *FH = $self->{fh};
+
+    if( defined( $line ) ){ print FH $line; } 
+    if( ! defined($\) ){  print FH $self->{eol}; }
+}
+
+sub process_cmdlineargs()
+{
+    my $self = shift;
+    my @argv = @_;
+
+    # process command-line arguments
+    if( grep(/--svg/, @argv) ) { $self->{p} = 'svg'; }
+    if( (my @l = grep(/--mult=-?[0-9.]+/, @argv)) ){ $l[0] =~ /--mult=(-?[0-9.]+)/; $self->{mult} = $1; }
 }
 
 sub set_colors()
@@ -146,6 +168,9 @@ sub update_position()
     return 1;
 }
 
+sub get_x() { my $self = shift; return $self->{x}; }
+sub get_y() { my $self = shift; return $self->{y}; }
+
 sub get_current_position()
 {
     my $self = shift;
@@ -201,267 +226,19 @@ sub add_part()
     }
 }
 
-### sub moveto()
-### {
-###     my $self = shift;
-###     my $newx = shift;
-###     my $newy = shift;
-### 
-###     my $sox = $self->{x};
-###     my $soy = $self->{y};
-###     
-###     if( $self->update_position( $newx, $newy ) )
-###     {
-###         push($self->{clist},
-###             {
-###                 cmd=>'m',   clr=>$self->{moveto_color}, 
-###                 sox=>$sox,  soy=>$soy,
-###                 tox=>$newx, toy=>$newy
-###             });
-###     }
-### }
-### 
-### sub mark_start()
-### {
-###     my $self = shift;
-###     my $clr  = shift || 'rgb(0,200,0)';
-###     push($self->{clist}, { cmd=>'os',  clr=>$clr, sox => $self->{x}, soy => $self->{y} });
-### }
-### 
-### sub mark_end()
-### {
-###     my $self = shift;
-###     my $clr  = shift || 'rgb(230,0,0)';
-###     push($self->{clist}, { cmd=>'oe',  clr=> $clr, sox => $self->{x}, soy => $self->{y} });
-### }
-### 
-### 
-### sub lineto()
-### {
-###     my $self = shift;
-###     my $newx = shift;
-###     my $newy = shift;
-### 
-###     my $sox = $self->{x};
-###     my $soy = $self->{y};
-###     
-###     if( $self->update_position( $newx, $newy ) )
-###     {
-###         push($self->{clist},
-###             {
-###                 cmd=>'l',   clr=>$self->{line_color}, 
-###                 sox=>$sox,  soy=>$soy,
-###                 tox=>$newx, toy=>$newy
-###             });
-###     }
-### }
-### 
-### # svg can do ellipses, but gcode cannot. for now, allow only circular arcs.
-### sub arcto()
-### {
-###     my $self = shift;
-###     my %args = @_;
-### 
-###     my $tox = $args{newx};
-###     my $toy = $args{newy};
-### 
-###     my $rdus = undef;
-###     if( exists($args{radius}) ) { $rdus = $args{radius}; }
-### 
-###     my $sweep = undef;
-###     if( exists($args{sweep})     ) { $sweep = $args{sweep}; } # ifdef sweep, ignore clockwise
-### 
-###     my $largearc = undef;
-###     if( exists($args{largearc}) ) { $largearc = $args{largearc}; }
-### 
-###     my $cx = undef;
-###     my $cy = undef;
-### 
-###     my $radius_tolerance = .00000001;  # arbitrary tiny number. this maybe needs to come from the machine spec.
-### 
-###     my $sox = $self->{x};
-###     my $soy = $self->{y};
-### 
-###     if( exists($args{cx}) && exists($args{cy}) && ( defined($largearc) || defined($sweep) ) )
-###     {
-###         # combined with the starting point, ending point, and sweep,
-###         # we can calculate the radius and largearc-flag
-### 
-###         $cx = $args{cx};
-###         $cy = $args{cy};
-### 
-###         # to find the largearc-flag, do a cross-product.
-###         # here's the algo.:
-###         # u = s - c    # u is the vector from the center to start (sox, soy, 0)
-###         # v = t - c    # v is the vector from the center to end   (tox, toy, 0)
-###         # let (u x v)k be the third (the kth) coodinate of (u x v)
-###         #
-###         # if( (u x v)k > 0 &&   $sweep ) largearc-flag = 0;
-###         # if( (u x v)k > 0 && ! $sweep ) largearc-flag = 1;
-###         # if( (u x v)k < 0 &&   $sweep ) largearc-flag = 1;
-###         # if( (u x v)k < 0 && ! $sweep ) largearc-flag = 0;
-### 
-###         my $ux = $sox - $cx;
-###         my $uy = $soy - $cy;
-###         my $vx = $tox - $cx;
-###         my $vy = $toy - $cy;
-###         my $cross = $ux*$vy - $uy*$vx;
-### 
-###         if( defined($sweep) && ! defined($largearc) )
-###         {
-###             if(    $cross  < 0 ){ $largearc =   $sweep; }
-###             elsif( $cross  > 0 ){ $largearc = ! $sweep; }
-###             else                { $largearc = 1; }
-###         }
-###         elsif( ! defined($sweep) && defined($largearc) )
-###         {
-###             if(    $cross  < 0 ){ $sweep =   $largearc; }
-###             elsif( $cross  > 0 ){ $sweep = ! $largearc; }
-###             else                { die "sweep is ambiguous with 180-degree arc. sweep must be defined"; }
-###         }
-###         else
-###         {
-###             # verify that the everything is in agreement
-###             if( $cross  < 0 && $sweep != $largearc ){ die "sweep disagrees with largearc given start,stop,center"; }
-###             if( $cross  > 0 && $sweep == $largearc ){ die "sweep disagrees with largearc given start,stop,center"; }
-###         }
-### 
-###         # assert( at this point, largearc and sweep are defined and agree )
-### 
-###         my $r1 = sqrt( $ux**2 + $uy**2 );
-###         my $r2 = sqrt( $vx**2 + $vy**2 );
-### 
-###         $self->print_debug( 5, sprintf( 'sox,soy == %.02f,%.02f; tox,toy == %.02f,%.02f; cx,cy == %.02f,%.02f; '.
-###                                         'ux,uy == %.02f,%.02f; vx,vy == %.02f,%.02f; cross = %.02f; r1,r1 == %.02f,%.02f; %s',
-###                                          $sox, $soy, $tox, $toy, $cx, $cy, $ux, $uy, $vx, $vy, $cross, $r1, $r2, "\n" ) );
-### 
-###         if( abs($r1 - $r2) > $radius_tolerance )
-###         {
-###             die "the calculated radii for a circular arc must be reasonably equal. r1:$r1 != r2:$r2  diff: ".abs($r1 - $r2);
-###         }
-### 
-###         if( defined($rdus) )
-###         {
-###             if( abs( $rdus - $r2 ) > $radius_tolerance )
-###             {
-###                 die "the specified radius differs from the calculated radii by too much. ".
-###                     "given:$rdus != calc'd:$r2. diff: ".abs( $rdus - $r2 );
-###             }
-###             # rdus is within tolerance.  leave it alone.
-###         }
-###         else
-###         {
-###             $rdus = ($r1 == $r2 ? $r1 : .5*($r1 + $r2));
-###         }
-###     }
-### 
-###     # if the center point is not defined then we need a radius, sweep, *and* largearc flag to find the center.
-###     elsif( defined($rdus) && defined($sweep) && defined($largearc) )
-###     {
-###         # this of (ux,uy) as a vector rooted at t with its head at s. t toward s.  or as rooted at s pointing directly away from t.
-###         my $ux = $sox - $tox;
-###         my $uy = $soy - $toy;
-###         my $dist = sqrt( $ux**2 + $uy**2 ); # distance between t and s.
-### 
-###         if( $rdus < .5*$dist && abs($rdus - .5*$dist) > $radius_tolerance )
-###         {
-###             die "radius between specified points is too short";
-###         }
-###         elsif( abs($rdus - .5*$dist) > $radius_tolerance )
-###         {
-###             # the radius is long enough that the center of the circle is not on the line
-###             # between the two points (we're rotating trough a non-180 degree angle.)
-### 
-###             my $half_dist = .5 * $dist;
-### 
-###             # this is the midpoint between the s and t. below there is a better explanation
-###             my $mx = $sox - .5 * $ux;
-###             my $my = $soy - .5 * $uy;
-### 
-###             # ($ux,$uy) is the vector from s to t, so (-$uy,$ux) is a vector perpendicular
-###             # to ($ux,$uy) with the same length.  to re-locate that vector so that the head
-###             # of it actually falls on the line between s and t, we add the midpoint.  The center
-###             # of the circle lies along this line we just found.  It's at a distance from the 
-###             # midpoint given by the all important a^2 + b^2 = c^2 relationship.  'c' is 'rdus'
-###             # 'b' is 'half_dist' thus:  a**2 == rdus**2 - half_dist**2, and we want 'a'.  this
-###             # is the offset of the center of the circle from the vector ($mx,$my) along the line
-###             # we found earlier.
-### 
-###             # this is the absolute distance offset of (cx,cy) from (mx,my)
-###             my $a = sqrt($rdus**2 - $half_dist**2);
-### 
-###             # make a vector perpendicular to (ux,uy), called (vx,vy), with length $a, oriented
-###             # such that (ux,uy,0) x (vx,vy,0) == |%|*(0,0, ux**2 + uy**2). i.e.: rhr positive.
-###             my $tmplen = sqrt($ux**2 + $uy**2);
-###             my $vx = $uy * (-1/$tmplen) * $a;
-###             my $vy = $ux * ( 1/$tmplen) * $a;
-### 
-###             # now the desired (cx,cy) is either at (mx,my) + (vx,vy), or at (mx,my) - (vx,vy)
-###             # depending on sweep and largearc.  the large side of the circle (largearc) will
-###             # go on the side of (ux,uy) that has our center.  so...
-###             #  ...  it can be shown that:
-###             #  (cx,cy)  ==  (mx,my)  +  (-1)*(sweep xor largearc)*(vx,vy)
-###             #  
-###             # that is:  if(sweep != largearc){ then negate (vx,vy) }
-###             # it's not too difficult to prove on paper.
-###             $cx = $mx + (-1)*($sweep ^ $largearc)*$vx;
-###             $cy = $my + (-1)*($sweep ^ $largearc)*$vy;
-###         }
-###         else
-###         {
-###             # we're doing a half circle. center is the mid-point.
-###             # rationalle of this code below:
-###             #   if sox (start-x) is less than tox (to-x), then the center point we need is
-###             #   greater than sox. Since it's true also, in this case, that ($ux < 0) we add
-###             #   ux/2 to sox by subtracting it's negative value from it.  so cx = sox - .5*ux.
-###             #   on the other hand, if sox > tox, then ux > 0, AND we need a cx that's less
-###             #   than sox;  so we need cx = sox - .5*ux, the same thing. (this is like the
-###             #   simple harmonic oscilator from physics class.)  Same goes for cy.
-### 
-###             $cx = $sox - .5 * $ux;
-###             $cy = $soy - .5 * $uy;
-###         }
-###     }
-###     else
-###     {
-###         die "the arc center or the largearg-flag must be defined\n";
-###     }
-### 
-### 
-###     # for complete circles the next position will equal the start, so add command
-###     # even if the current position didn't change.
-###     push($self->{clist},
-###         {
-###             cmd=>'a',        clr=>(exists($args{clr}) ? $args{clr} : $self->{line_color}), 
-###             sox=>$sox,       soy=>$soy,
-###             tox=>$tox,       toy=>$toy,
-###             sweep=>$sweep,   largearc=>$largearc,
-###             cx=>$cx,         cy=>$cy,
-###             radius=>$rdus
-###         });
-### 
-###     $self->print_debug( 5,
-###         sprintf( 'arc debug -- sox=>%.03f, soy=>%.03f, tox=>%.03f, toy=>%.03f, sweep=>%d, largearc=>%d, cx=>%.03f, cy=>%.03f, radius=>%.03f',
-###             ($sox + $self->{xoffset}) * $self->{mult}, ($soy + $self->{yoffset}) * $self->{mult},
-###             ($tox + $self->{xoffset}) * $self->{mult}, ($toy + $self->{yoffset}) * $self->{mult},
-###             $sweep, $largearc,
-###             ($cx + $self->{xoffset}) * $self->{mult}, ($cy + $self->{yoffset}) * $self->{mult},
-###             $rdus * $self->{mult} ));
-### 
-###     $self->update_position( $tox, $toy );
-### }
-
 sub svg_lineto()
 {
     my $self = shift;
     my $h = shift;
-    local *FH = $self->{fh};
-    printf( FH '<line x1="%.03f" y1="%.03f" x2="%.03f" y2="%.03f" style="stroke:%s;stroke-width:1" />%s',
-        ($h->{sox} + $self->{xoffset}) * $self->{mult},
-        ($h->{soy} + $self->{yoffset}) * $self->{mult}, 
-        ($h->{tox} + $self->{xoffset}) * $self->{mult},
-        ($h->{toy} + $self->{yoffset}) * $self->{mult},
-        $h->{clr},"\n");
+
+    $self->p(
+        sprintf( '<line x1="%.03f" y1="%.03f" x2="%.03f" y2="%.03f" style="stroke:%s;stroke-width:1" />',
+            ($h->{sox} + $self->{xoffset}) * $self->{mult},
+            ($h->{soy} + $self->{yoffset}) * $self->{mult}, 
+            ($h->{tox} + $self->{xoffset}) * $self->{mult},
+            ($h->{toy} + $self->{yoffset}) * $self->{mult},
+            $h->{clr})
+    );
 }
 
 sub svg_arcto()
@@ -473,22 +250,24 @@ sub svg_arcto()
     my $s = $h->{sweep};
     my $c = $h->{clr};
 
-    # d="move to where I already am, then draw an arc using our parameters."
-    local *FH = $self->{fh};
-    printf( FH '<path d="M%.03f %.03f A%.03f,%.03f 0 %d,%d %.03f,%.03f" style="stroke:%s;stroke-width:1;fill:none" />%s',
+    $self->p(
 
-        ($h->{sox} + $self->{xoffset}) * $self->{mult},
-        ($h->{soy} + $self->{yoffset}) * $self->{mult}, 
+        # d="move to where I already am, then draw an arc using our parameters."
+        sprintf( '<path d="M%.03f %.03f A%.03f,%.03f 0 %d,%d %.03f,%.03f" style="stroke:%s;stroke-width:1;fill:none" />',
 
-        $h->{radius} * $self->{mult},
-        $h->{radius} * $self->{mult}, 
+            ($h->{sox} + $self->{xoffset}) * $self->{mult},
+            ($h->{soy} + $self->{yoffset}) * $self->{mult}, 
 
-        $h->{largearc}, $h->{sweep}, 
+            $h->{radius} * $self->{mult},
+            $h->{radius} * $self->{mult}, 
 
-        ($h->{tox} + $self->{xoffset}) * $self->{mult},
-        ($h->{toy} + $self->{yoffset}) * $self->{mult},
+            $h->{largearc}, $h->{sweep}, 
 
-        $h->{clr},"\n" );
+            ($h->{tox} + $self->{xoffset}) * $self->{mult},
+            ($h->{toy} + $self->{yoffset}) * $self->{mult},
+
+            $h->{clr} )
+    );
 }
 
 sub svg_moveto()
@@ -505,11 +284,14 @@ sub svg_endpoint()
 {
     my $self = shift;
     my $h = shift;
-    local *FH = $self->{fh};
-    printf( FH '<circle cx="%.03f", cy="%.03f", r="3", fill="%s" stroke="none" />%s', 
-        (($h->{sox} + $self->{xoffset}) * $self->{mult}),
-        (($h->{soy} + $self->{yoffset}) * $self->{mult}),
-        $h->{clr}, "\n" );
+
+    $self->p(
+        sprintf( '<circle cx="%.03f", cy="%.03f", r="3", fill="%s" stroke="none" />', 
+            (($h->{sox} + $self->{xoffset}) * $self->{mult}),
+            (($h->{soy} + $self->{yoffset}) * $self->{mult}),
+            $h->{clr} )
+    );
+
 }
 
 sub svg_rectangular_background()
@@ -520,13 +302,14 @@ sub svg_rectangular_background()
     my $wd = abs($h->{sox} - $h->{tox});
     my $ht = abs($h->{soy} - $h->{toy});
 
-    local *FH = $self->{fh};
-    printf( FH '<rect x="%.03f", y="%.03f", width="%.03f", height="%.03f", fill="%s" stroke="none" />%s', 
-        (($h->{sox} + $self->{xoffset}) * $self->{mult}),
-        (($h->{soy} + $self->{yoffset}) * $self->{mult}),
-        $wd * $self->{mult},
-        $ht * $self->{mult},
-        $h->{clr}, "\n" );
+    $self->p(
+        sprintf( '<rect x="%.03f", y="%.03f", width="%.03f", height="%.03f", fill="%s" stroke="none" />', 
+            (($h->{sox} + $self->{xoffset}) * $self->{mult}),
+            (($h->{soy} + $self->{yoffset}) * $self->{mult}),
+            abs($wd * $self->{mult}),
+            abs($ht * $self->{mult}),
+            $h->{clr} )
+    );
 }
 
 sub gcode_linear_motion()
@@ -559,8 +342,7 @@ sub gcode_linear_motion()
         if( $ystr =~ s/0+$// ){ $ystr =~ s/\.$//; }
     }
 
-    local *FH = $self->{fh};
-    printf( FH '%sX%sY%s%s', $s, $xstr, $ystr, "\n" );
+    $self->p( sprintf( '%sX%sY%s', $s, $xstr, $ystr ) );
 }
 
 sub gcode_lineto() { my $self = shift; my $h = shift; $self->gcode_linear_motion( $h, 'G01' ); }
@@ -576,14 +358,15 @@ sub gcode_arcto()
     # The purpose of this is just so that ($self->{LASTGCMD} != 'G00/1')
     $self->{LASTGCMD} = $g;
 
-    local *FH = $self->{fh};
-    printf( FH '%s X%.03f Y%.03f I%.03f J%.03f%s', $g, #  $h->{tox}, $h->{toy}, ($h->{tox} - $h->{sox}), ($h->{toy} - $h->{soy}), "\n" );
+    $self->p(
+        sprintf( '%s X%.03f Y%.03f I%.03f J%.03f', $g, #  $h->{tox}, $h->{toy}, ($h->{tox} - $h->{sox}), ($h->{toy} - $h->{soy}), "\n" );
 
-        ($h->{tox} + $self->{xoffset}) * $self->{mult}, 
-        ($h->{toy} + $self->{yoffset}) * $self->{mult}, 
+            ($h->{tox} + $self->{xoffset}) * $self->{mult}, 
+            ($h->{toy} + $self->{yoffset}) * $self->{mult}, 
 
-        ($h->{cx} - $h->{sox}) * $self->{mult}, 
-        ($h->{cy} - $h->{soy}) * $self->{mult}, "\n" );
+            ($h->{cx} - $h->{sox}) * $self->{mult}, 
+            ($h->{cy} - $h->{soy}) * $self->{mult} )
+    );
 }
 
 sub set_height_width()     { my $self = shift; $self->{height}  = shift; $self->{width}    = shift; }
@@ -627,18 +410,15 @@ sub printall()
 sub print_koike_gcode_start()
 {
     my $self = shift;
-    local *FH = $self->{fh};
 
     # the asterisk before M08 is part of the communications protocol, and the remaining
     # codes basically turn the cutting heads off and stuff lke that.
-    print FH <<"EOF";
-*
-M08
-M16
-G20
-G40
-G90
-EOF
+    $self->p("*");
+    $self->p("M08");
+    $self->p("M16");
+    $self->p("G20");
+    $self->p("G40");
+    $self->p("G90");
 
     $self->{LASTGCMD} = 'G90';
 }
@@ -646,13 +426,9 @@ EOF
 sub end_koike_gcode()
 {
     my $self = shift;
-    local *FH = $self->{fh};
 
     # M30 says "end of program" signals koike to stop reading serial input.
-    print FH <<"EOF";
-M30
-EOF
-
+    $self->p("M30");
 }
 
 
@@ -665,38 +441,20 @@ sub print_svg_html_start()
     if( ! defined($self->{height}) ){ $self->{height} = $self->{ymax}; }
     if( ! defined($self->{width})  ){ $self->{width}  = $self->{xmax}; }
 
-    my $h = ($self->{height} + abs($self->{yoffset})) * $self->{mult};
-    my $w = ($self->{width}  + abs($self->{xoffset})) * $self->{mult};
+    my $h = ($self->{height} + abs($self->{yoffset})) * $self->{mult} + 1;
+    my $w = ($self->{width}  + abs($self->{xoffset})) * $self->{mult} + 1;
 
     # round these values up to the nearest integer
-    if( $h != int($h) ) { $h = sprintf("%d", $h+.5 ); }
-    if( $w != int($w) ) { $w = sprintf("%d", $w+.5 ); }
+    if( $h != int($h) ) { $h = sprintf("%d", abs($h)+.5 ); }
+    if( $w != int($w) ) { $w = sprintf("%d", abs($w)+.5 ); }
 
-    local *FH = $self->{fh};
-    print FH <<"EOF";
-
-<!DOCTYPE html>
-<html>
- <body>
-
-<svg height="$h" width="$w">
-
-EOF
+    $self->p( '<!DOCTYPE html><html><body><svg height="'.abs($h).'" width="'.abs($w).'">' );
 }
 
 sub print_svg_html_end()
 {
     my $self = shift;
-    local *FH = $self->{fh};
-    print FH <<"EOF";
-
-      Sorry, your browser does not support inline SVG.
- </svg>
-
- </body>
-</html>
-
-EOF
+    $self->p( "Sorry, your browser does not support inline SVG.</svg></body></html>" );
 }
 
 sub print_debug()
