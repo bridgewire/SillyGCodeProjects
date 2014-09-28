@@ -34,7 +34,7 @@ sub new {
 
     $self->{eol} = "\r\n";
 
-    $self->{DEBUG} = exists($args{debug}) ? $args{debug}    : 10;  # 10 means: no debug messages.
+    $self->{DEBUG} = exists($args{debug}) ? $args{debug}    : 0;  # 0 means: no debug messages.
     $self->{p} = exists($args{protocol})  ? $args{protocol} : 'gcode'; # protocol: svg or gcode
     $self->{x} = undef;
     $self->{y} = undef;
@@ -48,12 +48,15 @@ sub new {
     $self->{height} = undef;
     $self->{width} = undef;
 
+    # colors for svg mode
     my $dfltclr = 'rgb(255,0,0)';
     $self->{moveto_color} = exists($args{moveto_color}) ? $args{moveto_color}  : 'none';
     $self->{cut_color}    = exists($args{cut_color})    ? $args{cut_color}     : $dfltclr;
     $self->{line_color}   = exists($args{line_color})   ? $args{line_color}    : $dfltclr;
     $self->{curve_color}  = exists($args{curve_color})  ? $args{curve_color}   : $dfltclr;
     $self->{matrl_color}  = exists($args{material_color})  ? $args{material_color}   : 'rgb(200,255,255)';
+
+    # adding a part fills this command list.  printing pulls from it.
     $self->{clist} = [];
 
     # offsets and scaling
@@ -65,7 +68,9 @@ sub new {
     $self->{abscoords}    =  exists($args{abscoords})      ? $args{abscoords}     : 1;
     $self->{absIJKcoords} =  exists($args{absIJKcoords})   ? $args{absIJKcoords}  : 0;
     $self->{verbosegcode} =  exists($args{verbosegcode})   ? $args{verbosegcode}  : 0;
-    $self->{LASTGCMD} = ''; # the present command (G00,G01,G02,...) is a machines state variable
+    $self->{addcutting}   =  exists($args{addcutting})     ? $args{addcutting}    : 0;
+    $self->{cuttingon}    =  0; # is the cutting head turned on?  boolean.
+    $self->{LASTGCMD}     = ''; # the present command (G00,G01,G02,...) is a machines state variable
 
     # create a handle to the output file (default: stdout) so that a replacement can be used transparently
     $self->{fh} = IO::Handle->new();
@@ -92,7 +97,8 @@ sub process_cmdlineargs()
 
     # process command-line arguments
     if( grep(/--svg/, @argv) ) { $self->{p} = 'svg'; }
-    if( (my @l = grep(/--mult=-?[0-9.]+/, @argv)) ){ $l[0] =~ /--mult=(-?[0-9.]+)/; $self->{mult} = $1; }
+    if( (my @l = grep(/--mult=-?[0-9.]+/,  @argv)) ){ $l[0] =~ /--mult=(-?[0-9.]+)/;  $self->{mult}  = $1; }
+    if( (my @l = grep(/--d(ebug)?=[0-9]+/, @argv)) ){ $l[0] =~ /--d(ebug)?=([0-9]+)/; $self->{DEBUG} = $2; }
 }
 
 sub set_colors()
@@ -118,6 +124,12 @@ sub get_colors()
         curve_color  => $self->{curve_color},
         matrl_color  => $self->{matrl_color},
     );
+}
+
+sub get_protocol()
+{
+    my $self  = shift;
+    return $self->{p};
 }
 
 sub get_color()
@@ -286,9 +298,10 @@ sub svg_endpoint()
     my $h = shift;
 
     $self->p(
-        sprintf( '<circle cx="%.03f", cy="%.03f", r="3", fill="%s" stroke="none" />', 
+        sprintf( '<circle cx="%.03f", cy="%.03f", r="%.03f", fill="%s" stroke="none" />', 
             (($h->{sox} + $self->{xoffset}) * $self->{mult}),
             (($h->{soy} + $self->{yoffset}) * $self->{mult}),
+            ( $h->{r}              * 5 * log( $self->{mult} )),  # scale the size of the dot at a non-linear rate. 5*log(r) chosen after experimentation
             $h->{clr} )
     );
 
@@ -312,11 +325,42 @@ sub svg_rectangular_background()
     );
 }
 
+sub gcode_cutting_on
+{
+    my $self = shift;
+
+    if( $self->{cuttingon} ) { return; }
+
+    # else
+    $self->{cuttingon} = 1;
+    $self->p( 'M15' );
+}
+
+sub gcode_cutting_off
+{
+    my $self = shift;
+
+    if( ! $self->{cuttingon} ) { return; }
+
+    # else
+    $self->{cuttingon} = 0;
+    $self->p( 'M16' );
+}
+
+
 sub gcode_linear_motion()
 {
     my $self = shift;
     my $h = shift;
     my $s = shift;
+
+    if( $self->{addcutting} )
+    {
+        # if changing between linear modes, enable or disable the cutting head appropriately
+        if   ( $s eq 'G00' ) { $self->gcode_cutting_off(); }
+        elsif( $s eq 'G01' ) { $self->gcode_cutting_on(); }
+    }
+
     if( length($s) > 0 )
     {
         # data transfer to the the Koike is very slow, so reduce
@@ -352,11 +396,19 @@ sub gcode_arcto()
 {
     my $self = shift; my $h = shift; 
 
+    # In SVG, 'sweep' is a positive angle, but rotates clockwise.
+    # In Koike gcode we decide that sweep is still positive, but counter-clockwise.
+    # This correctly implements the mirror image flip around the x-axis
     my $g = $h->{sweep} ? 'G03' : 'G02' ;
 
     # I assume G02/3 are rarely used, so I won't bother, for now, with the space-saving code.
     # The purpose of this is just so that ($self->{LASTGCMD} != 'G00/1')
     $self->{LASTGCMD} = $g;
+
+    if( $self->{addcutting} ) { $self->gcode_cutting_on(); }
+
+    $self->print_debug( 1, sprintf("sox:%.02f soy:%.02f tox:%.02f toy:%.02f cx:%.02f cy:%.02f mult:%.02f",
+                                   $h->{sox}, $h->{soy}, $h->{tox}, $h->{toy}, $h->{cx}, $h->{cy}, $self->{mult} ) );
 
     $self->p(
         sprintf( '%s X%.03f Y%.03f I%.03f J%.03f', $g, #  $h->{tox}, $h->{toy}, ($h->{tox} - $h->{sox}), ($h->{toy} - $h->{soy}), "\n" );
@@ -372,6 +424,7 @@ sub gcode_arcto()
 sub set_height_width()     { my $self = shift; $self->{height}  = shift; $self->{width}    = shift; }
 sub set_offsets()          { my $self = shift; $self->{xoffset} = shift; $self->{yoffset}  = shift; }
 sub set_scale_multiplier() { my $self = shift; $self->{mult}    = shift; }
+sub get_scale_multiplier() { my $self = shift; return $self->{mult}; }
 
 
 sub printall()
@@ -460,9 +513,9 @@ sub print_svg_html_end()
 sub print_debug()
 {
     my $self = shift;
-    my $importance = shift;
+    my $ordinal_importance = shift;  # the smaller the number used, the more likely it is that print_debug will generate output
     my $msg  = join('', @_);
-    if( $importance > $self->{DEBUG} )
+    if( $self->{DEBUG} >= $ordinal_importance  )
     {
         my $d=`date "+%F %T"`;
         chomp($d);

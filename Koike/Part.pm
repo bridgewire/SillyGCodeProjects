@@ -8,7 +8,7 @@ use strict;
 
 #use Koike;
 use Math::Trig;
-use Clone qw(clone);
+use Clone 'clone';
 
 BEGIN
 {
@@ -45,7 +45,7 @@ sub new {
 
     $self->{startx} = exists($args{startx}) ? $args{startx} : $kx;  # our starting point.
     $self->{starty} = exists($args{starty}) ? $args{starty} : $ky;
-    $self->{x} = $self->{startx};                                  # is also current position
+    $self->{x} = $self->{startx};                                   # is also current position
     $self->{y} = $self->{starty};
 
 #    $self->{p} = exists($args{protocol}) ? $args{protocol} : 'gcode'; # protocol: svg or gcode
@@ -71,7 +71,7 @@ sub new {
     # 
     $self->{mark_start_color} = 'rgb(0,200,0)';  # green for go
     $self->{mark_end_color}   = 'rgb(230,0,0)';  # red for stop
-    $self->{mark_dot_radius}  = 3;               # how big around?
+    $self->{mark_dot_radius}  = .2;              # how big around?
 
 
     bless($self,$class); # bless me! and all who are like me. bless us everyone.
@@ -112,6 +112,36 @@ sub copy()
     );
 
     return $c;
+}
+
+sub merge()
+{
+    # begin with cloning otherpart
+    #  'this' part cyles through its own command-list (the clist) and uses the otherpart's push_cmd
+    #  method to append our commends to it's commands
+
+    my $self = shift;
+    my $otherpart = shift;
+
+    my $newmerged = $otherpart->copy();
+
+    my ($linking_x, $linking_y) = $newmerged->get_current_position();
+
+    if( $linking_x != $self->{startx} || $linking_y != $self->{starty} )
+    {
+        $newmerged->moveto( $self->{startx}, $self->{starty} );
+    }
+
+    for( my $i = 0; $i <= $#{$self->{clist}}; $i++ )
+    {
+        $newmerged->push_cmd( ${$self->{clist}}[$i] );
+    }
+
+    $newmerged->update_position( $self->{x}, $self->{y} );
+
+    $newmerged->auto_remake_bounding_box();
+
+    return $newmerged;
 }
 
 sub set_otherargs()
@@ -169,6 +199,7 @@ sub translate()
     my $xshift = shift;
     my $yshift = shift;
 
+    # shift every coordinate
     for( my $i = 0; $i <= $#{$self->{clist}}; $i++ )
     {
         ${$self->{clist}}[$i]->{sox} += $xshift;
@@ -186,6 +217,15 @@ sub translate()
             ${$self->{clist}}[$i]->{cy} += $yshift;
         }
     }
+
+    # all meta-coordinates are aspects of this part too...
+    $self->{x} += $xshift;
+    $self->{y} += $yshift;
+
+    $self->{startx} += $xshift;
+    $self->{starty} += $yshift;
+
+    $self->auto_remake_bounding_box();
 }
 
 sub scale()
@@ -201,6 +241,19 @@ sub matrix_mult()
     my $self  = shift;
     my $mat   = shift;
     my $vec = shift;
+
+
+    $self->{k}->print_debug( 8, 
+          '$$mat[0][0] == '.(exists($$mat[0][0]) && defined($$mat[0][0])?"exists:".$$mat[0][0]:"nonesuch").
+          '$$vec[0] == '.(exists($$vec[0]) && defined($$vec[0])?"exists:".$$vec[0]:"nonesuch").
+          '$$mat[0][1] == '.(exists($$mat[0][1]) && defined($$mat[0][1])?"exists:".$$mat[0][1]:"nonesuch").
+          '$$vec[1] == '.(exists($$vec[1]) && defined($$vec[1])?"exists:".$$vec[1]:"nonesuch").
+          '$$mat[1][0] == '.(exists($$mat[1][0]) && defined($$mat[1][0])?"exists:".$$mat[1][0]:"nonesuch").
+          '$$vec[0] == '.(exists($$vec[0]) && defined($$vec[0])?"exists:".$$vec[0]:"nonesuch").
+          '$$mat[1][1] == '.(exists($$mat[1][1]) && defined($$mat[1][1])?"exists:".$$mat[1][1]:"nonesuch").
+          '$$vec[1] == '.(exists($$vec[1]) && defined($$vec[1])?"exists:".$$vec[1]:"nonesuch")
+  );
+
     return ( $$mat[0][0] * $$vec[0] + $$mat[0][1] * $$vec[1], $$mat[1][0] * $$vec[0] + $$mat[1][1] * $$vec[1] );
 }
 
@@ -241,6 +294,8 @@ sub rotate()
     my $self  = shift;
     my $angle = shift;
     my $units = shift || 'radians';  # what's the angle unit?  default is radians.
+
+    $self->{k}->print_debug( 3, "rotate() received -- angle:$angle , units:$units" );
 
     if( $units =~ /degree/ ) { $angle = deg2rad($angle); }
 
@@ -359,12 +414,10 @@ sub moveto()
     
     if( $self->update_position( $newx, $newy ) )
     {
-        push($self->{clist},
-            {
+        $self->push_cmd( {
                 cmd=>'m',   clr=>$self->{k}->get_color('moveto_color'),
                 sox=>$sox,  soy=>$soy,
-                tox=>$newx, toy=>$newy
-            });
+                tox=>$newx, toy=>$newy } );
     }
 }
 
@@ -374,7 +427,8 @@ sub do_mark()
     my $self = shift;
     my $cmd  = shift;
     my $clr  = shift;
-    push($self->{clist}, { cmd=>$cmd,  clr=>$clr, sox => $self->{x}, soy => $self->{y}, r => $self->{mark_dot_radius} });
+
+    $self->push_cmd( { cmd=>$cmd,  clr=>$clr, sox => $self->{x}, soy => $self->{y}, r => $self->{mark_dot_radius} } );
 }
 
 sub mark_start() { my $self = shift; my $clr  = shift || $self->{mark_start_color}; $self->do_mark('os',$clr); }
@@ -392,12 +446,10 @@ sub lineto()
     
     if( $self->update_position( $newx, $newy ) )
     {
-        push($self->{clist},
-            {
+        $self->push_cmd( {
                 cmd=>'l',   clr=>$self->{cut_color}, 
                 sox=>$sox,  soy=>$soy,
-                tox=>$newx, toy=>$newy
-            });
+                tox=>$newx, toy=>$newy } );
     }
 }
 
@@ -477,8 +529,8 @@ sub arcto()
         my $r2 = sqrt( $vx**2 + $vy**2 );
 
         $self->{k}->print_debug( 5, sprintf('sox,soy == %.02f,%.02f; tox,toy == %.02f,%.02f; cx,cy == %.02f,%.02f; '.
-                                            'ux,uy == %.02f,%.02f; vx,vy == %.02f,%.02f; cross = %.02f; r1,r1 == %.02f,%.02f; %s',
-                                            $sox, $soy, $tox, $toy, $cx, $cy, $ux, $uy, $vx, $vy, $cross, $r1, $r2, "\n" ) );
+                                            'ux,uy == %.02f,%.02f; vx,vy == %.02f,%.02f; cross = %.02f; r1,r1 == %.02f,%.02f;',
+                                            $sox, $soy, $tox, $toy, $cx, $cy, $ux, $uy, $vx, $vy, $cross, $r1, $r2 ) );
 
         if( abs($r1 - $r2) > $radius_tolerance )
         {
@@ -503,68 +555,88 @@ sub arcto()
     # if the center point is not defined then we need a radius, sweep, *and* largearc flag to find the center.
     elsif( defined($rdus) && defined($sweep) && defined($largearc) )
     {
-        # this of (ux,uy) as a vector rooted at t with its head at s. t toward s.  or as rooted at s pointing directly away from t.
-        my $ux = $sox - $tox;
-        my $uy = $soy - $toy;
-        my $dist = sqrt( $ux**2 + $uy**2 ); # distance between t and s.
+        # make a vector named U
+        my $ux = $tox - $sox;
+        my $uy = $toy - $soy;
+        my $u_norm = sqrt( $ux**2 + $uy**2 );   # this is: ||U|| in description below
 
-        if( $rdus < .5*$dist && abs($rdus - .5*$dist) > $radius_tolerance )
+        if( $rdus < .5*$u_norm && abs($rdus - .5*$u_norm) > $radius_tolerance )
         {
-            die "radius ($rdus) between specified points (s: $sox,$soy) -> (t: $tox,$toy) is too short (dist:$dist)";
+            die "radius ($rdus) between specified points (s: $sox,$soy) -> (t: $tox,$toy) is too short (||t-s||:$u_norm)";
         }
-        elsif( abs($rdus - .5*$dist) > $radius_tolerance )
+        elsif( abs($rdus - .5*$u_norm) > $radius_tolerance )
         {
             # the radius is long enough that the center of the circle is not on the line
             # between the two points (we're rotating trough a non-180 degree angle.)
 
-            my $half_dist = .5 * $dist;
+            ##################################  SVG
+            # First, we're dealing with a left-hand coord. system.  This means the
+            # cross product, at least for vectors in the x,y plane, has this
+            # definition: U x V == i.0 + j.0 + k.(v1*u2 - v2*u1).  Thus if
+            # U=(u1,u2) then defining V=(u2,-u1) and taking the above cross product
+            # produces a vector in the (left-handed) positive z direction.
+            # 
+            # so, let...
+            # T=(tox,toy)
+            # S=(sox,soy)
+            # U=T-S = (u1,u2)
+            #  * note: U is a cord between S and T on the circle we're trying to define with center C and radius rdus
+            #  * let V be a vector between the midpoint of U and the center of the circle C. notice that U and V are
+            #  * at right angles from each other and that:  rdus**2 = (1/2 * ||U||)^2 + ||V||^2
+            #  * therefore: ||V|| == sqrt( rdus**2 - (.5 * ||U||)^2 ).  This allows us to define V in terms of U and rdus
+            # V=  ((u2,-u1)/||U||) * sqrt( rdus^2 - (1/4)*||U||^2)
+            # remember, by this definition of V, that since this is a left-hand system that UxV is positive.
+            # It follows that the center, C, of the circle is located either at:
+            # S + (1/2)*U + V   ... or:
+            # S + (1/2)*U - V
+            # 
+            # The sign given to V in the above sum is given by $sweep and $largearc
+            # and can be denoted thus:
+            # C == S + (1/2)*U + ( $sweep == $largearc ? -1 : 1 )*V
 
-            # this is the midpoint between the s and t. below there is a better explanation
-            my $mx = $sox - .5 * $ux;
-            my $my = $soy - .5 * $uy;
+            ##################################  GCODE
+            # For the Koike, we have an ordinary right handed coordinate
+            # system.  the math is almost entirely the same but, for one, the
+            # cross product and V must be defined differently.  The cross
+            # product is defined differently (normally) because "counter
+            # clockwise" is the usual positive angle direction, so 'sweep'...
+            # may have a different meaning.
 
-            # ($ux,$uy) is the vector from s to t, so (-$uy,$ux) is a vector perpendicular
-            # to ($ux,$uy) with the same length.  to re-locate that vector so that the head
-            # of it actually falls on the line between s and t, we add the midpoint.  The center
-            # of the circle lies along this line we just found.  It's at a distance from the 
-            # midpoint given by the all important a^2 + b^2 = c^2 relationship.  'c' is 'rdus'
-            # 'b' is 'half_dist' thus:  a**2 == rdus**2 - half_dist**2, and we want 'a'.  this
-            # is the offset of the center of the circle from the vector ($mx,$my) along the line
-            # we found earlier.
+            # make U; made above
+            #my $ux = $tox - $sox;
+            #my $uy = $toy - $soy;
 
-            # this is the absolute distance offset of (cx,cy) from (mx,my)
-            my $a = sqrt($rdus**2 - $half_dist**2);
+            # make V
+            # my $u_norm = sqrt( $ux**2 + $uy**2 );   # this is: ||U||
+            # my $vscaler = sqrt( ($rdus**2) - .25 *($u_norm**2) ) / $u_norm;
+            my $vscaler = sqrt( ($rdus**2)/($ux**2 + $uy**2) - .25 );          # algebraicly equivalent
+            my $vx =  $uy * $vscaler ;
+            my $vy = -$ux * $vscaler ;
 
-            # make a vector perpendicular to (ux,uy), called (vx,vy), with length $a, oriented
-            # such that (ux,uy,0) x (vx,vy,0) == |%|*(0,0, ux**2 + uy**2). i.e.: rhr positive.
-            my $tmplen = sqrt($ux**2 + $uy**2);
-            my $vx = $uy * (-1/$tmplen) * $a;
-            my $vy = $ux * ( 1/$tmplen) * $a;
+            # if gcode is in use we're using the ordinary right-handed coordinate system. adjust.
+            if( $self->{k}->get_protocol() eq 'gcode' )
+            {
+                $vx = -$uy * $vscaler ;
+                $vy =  $ux * $vscaler ;
+            }
 
-            # now the desired (cx,cy) is either at (mx,my) + (vx,vy), or at (mx,my) - (vx,vy)
-            # depending on sweep and largearc.  the large side of the circle (largearc) will
-            # go on the side of (ux,uy) that has our center.  so...
-            #  ...  it can be shown that:
-            #  (cx,cy)  ==  (mx,my)  +  (-1)*(sweep xor largearc)*(vx,vy)
-            #  
-            # that is:  if(sweep != largearc){ then negate (vx,vy) }
-            # it's not too difficult to prove on paper.
-            $cx = $mx + (-1)*($sweep ^ $largearc)*$vx;
-            $cy = $my + (-1)*($sweep ^ $largearc)*$vy;
+            # make C (the center vector)
+            ($cx, $cy) = ( $sox + $ux/2.0, $soy + $uy/2.0 ) ;
+            if( $sweep == $largearc )
+            {
+                $cx -= $vx;
+                $cy -= $vy;
+            }
+            else
+            {
+                $cx += $vx;
+                $cy += $vy;
+            }
         }
         else
         {
-            # we're doing a half circle. center is the mid-point.
-            # rationalle of this code below:
-            #   if sox (start-x) is less than tox (to-x), then the center point we need is
-            #   greater than sox. Since it's true also, in this case, that ($ux < 0) we add
-            #   ux/2 to sox by subtracting it's negative value from it.  so cx = sox - .5*ux.
-            #   on the other hand, if sox > tox, then ux > 0, AND we need a cx that's less
-            #   than sox;  so we need cx = sox - .5*ux, the same thing. (this is like the
-            #   simple harmonic oscilator from physics class.)  Same goes for cy.
-
-            $cx = $sox - .5 * $ux;
-            $cy = $soy - .5 * $uy;
+            # This yields the point half way between T and S. see explanation above.
+            ($cx, $cy) = ( $sox + $ux/2.0, $soy + $uy/2.0 ) ;
         }
     }
     else
@@ -575,15 +647,13 @@ sub arcto()
 
     # for complete circles the next position will equal the start, so add command
     # even if the current position didn't change.
-    push($self->{clist},
-        {
+    $self->push_cmd( {
             cmd=>'a',        clr=>(exists($args{clr}) ? $args{clr} : $self->{cut_color}), 
             sox=>$sox,       soy=>$soy,
             tox=>$tox,       toy=>$toy,
             sweep=>$sweep,   largearc=>$largearc,
             cx=>$cx,         cy=>$cy,
-            radius=>$rdus
-        });
+            radius=>$rdus } );
 
     $self->{k}->print_debug( 5,
         sprintf( 'arc debug -- sox=>%.03f, soy=>%.03f, tox=>%.03f, toy=>%.03f, sweep=>%d, largearc=>%d, cx=>%.03f, cy=>%.03f, radius=>%.03f',
@@ -595,6 +665,29 @@ sub arcto()
             $rdus * $self->{mult} ));
 
     $self->update_position( $tox, $toy );
+}
+
+sub push_cmd
+{
+    my $self = shift;
+    my $args = shift;
+
+    my $href = {};
+
+    if( exists($args->{sox})      ){ $href->{sox}      = $args->{sox}; }
+    if( exists($args->{soy})      ){ $href->{soy}      = $args->{soy}; }
+    if( exists($args->{tox})      ){ $href->{tox}      = $args->{tox}; }
+    if( exists($args->{toy})      ){ $href->{toy}      = $args->{toy}; }
+    if( exists($args->{r})        ){ $href->{r}        = $args->{r}; }
+    if( exists($args->{cmd})      ){ $href->{cmd}      = $args->{cmd}; }
+    if( exists($args->{clr})      ){ $href->{clr}      = $args->{clr}; }
+    if( exists($args->{sweep})    ){ $href->{sweep}    = $args->{sweep}; }
+    if( exists($args->{largearc}) ){ $href->{largearc} = $args->{largearc}; }
+    if( exists($args->{cx})       ){ $href->{cx}       = $args->{cx}; }
+    if( exists($args->{cy})       ){ $href->{cy}       = $args->{cy}; }
+    if( exists($args->{radius})   ){ $href->{radius}   = $args->{radius}; }
+
+    push($self->{clist}, $href) if(  keys %{$href} >= 1 ) ;
 }
 
 
