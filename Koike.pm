@@ -474,6 +474,19 @@ sub print_koike_gcode_start()
     $self->p("G90");
 
     $self->{LASTGCMD} = 'G90';
+
+    # if our actual starting point has shifted, then we need to begin our gcode
+    # commands with a 'moveto' (G00) because the Koike machine always starts
+    # its cuts at 0,0.
+    my $h;
+    my $i=0;
+    # find the first command that has a useful sox,soy. That's the actual starting point.
+    do {
+        $h = ${$self->{clist}}[$i];
+        $i++;
+    } while ( $h->{cmd} =~ /^(rb|start|end)$/ );
+
+    $self->gcode_moveto( { sox=>0,  soy=>0, tox=>$h->{sox}, toy=>$h->{soy} } );
 }
 
 sub end_koike_gcode()
