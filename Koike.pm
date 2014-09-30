@@ -55,6 +55,8 @@ sub new {
     $self->{line_color}   = exists($args{line_color})   ? $args{line_color}    : $dfltclr;
     $self->{curve_color}  = exists($args{curve_color})  ? $args{curve_color}   : $dfltclr;
     $self->{matrl_color}  = exists($args{material_color})  ? $args{material_color}   : 'rgb(200,255,255)';
+    $self->{mark_start_color} = exists($args{mark_start_color})  ? $args{mark_start_color} : 'rgb(0,200,0)';
+    $self->{mark_end_color}   = exists($args{mark_end_color})    ? $args{mark_end_color}   : 'rgb(230,0,0)';
 
     # adding a part fills this command list.  printing pulls from it.
     $self->{clist} = [];
@@ -71,6 +73,9 @@ sub new {
     $self->{addcutting}   =  exists($args{addcutting})     ? $args{addcutting}    : 0;
     $self->{cuttingon}    =  0; # is the cutting head turned on?  boolean.
     $self->{LASTGCMD}     = ''; # the present command (G00,G01,G02,...) is a machines state variable
+
+    # svg options
+    $self->{inc_html}     =  exists($args{includehtml})    ? $args{includehtml}     : 1;
 
     # create a handle to the output file (default: stdout) so that a replacement can be used transparently
     $self->{fh} = IO::Handle->new();
@@ -99,6 +104,67 @@ sub process_cmdlineargs()
     if( grep(/--svg/, @argv) ) { $self->{p} = 'svg'; }
     if( (my @l = grep(/--mult=-?[0-9.]+/,  @argv)) ){ $l[0] =~ /--mult=(-?[0-9.]+)/;  $self->{mult}  = $1; }
     if( (my @l = grep(/--d(ebug)?=[0-9]+/, @argv)) ){ $l[0] =~ /--d(ebug)?=([0-9]+)/; $self->{DEBUG} = $2; }
+
+    if( (my @l = grep(/--moveto-color="?(rgb\(\d+,\d+,\d+\)|#[0-9A-F]{6}|none)"?/i, @argv)) )
+    {
+        $l[0] =~ /--moveto-color="?(rgb\(\d+,\d+,\d+\)|#[0-9A-F]{6}|none)"?/i;
+        my $clr = $1;
+        $clr =~ tr/[A-Z]/[a-z]/; # switch to lower case
+        if( $clr =~ /^#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})/i )
+        {
+            my($r,$g,$b) = (hex($1),hex($2),hex($3));
+            $clr = "rgb($r,$g,$g)";
+        }
+        $self->set_colors( moveto_color=>$clr );
+    }
+    if( (my @l = grep(/--cut-color="?(rgb\(\d+,\d+,\d+\)|#[0-9A-F]{6}|none)"?/i, @argv)) )
+    {
+        $l[0] =~ /--cut-color="?(rgb\(\d+,\d+,\d+\)|#[0-9A-F]{6}|none)"?/i;
+        my $clr = $1;
+        $clr =~ tr/[A-Z]/[a-z]/; # switch to lower case.  we don't want "NoNe"
+        if( $clr =~ /^#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})/i )
+        {
+            my($r,$g,$b) = (hex($1),hex($2),hex($3));
+            $clr = "rgb($r,$g,$g)";
+        }
+        $self->set_colors( cut_color=>$clr );
+    }
+    if( (my @l = grep(/--material-color="?(rgb\(\d+,\d+,\d+\)|#[0-9A-F]{6}|none)"?/i, @argv)) )
+    {
+        $l[0] =~ /--material-color="?(rgb\(\d+,\d+,\d+\)|#[0-9A-F]{6}|none)"?/i;
+        my $clr = $1;
+        $clr =~ tr/[A-Z]/[a-z]/; # switch to lower case.  we don't want "NoNe"
+        if( $clr =~ /^#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})/i )
+        {
+            my($r,$g,$b) = (hex($1),hex($2),hex($3));
+            $clr = "rgb($r,$g,$g)";
+        }
+        $self->set_colors( matrl_color=>$clr );
+    }
+    if( (my @l = grep(/--mark-start-color="?(rgb\(\d+,\d+,\d+\)|#[0-9A-F]{6}|none)"?/i, @argv)) )
+    {
+        $l[0] =~ /--mark-start-color="?(rgb\(\d+,\d+,\d+\)|#[0-9A-F]{6}|none)"?/i;
+        my $clr = $1;
+        $clr =~ tr/[A-Z]/[a-z]/; # switch to lower case.  we don't want "NoNe"
+        if( $clr =~ /^#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})/i )
+        {
+            my($r,$g,$b) = (hex($1),hex($2),hex($3));
+            $clr = "rgb($r,$g,$g)";
+        }
+        $self->set_colors( mark_start_color=>$clr );
+    }
+    if( (my @l = grep(/--mark-end-color="?(rgb\(\d+,\d+,\d+\)|#[0-9A-F]{6}|none)"?/i, @argv)) )
+    {
+        $l[0] =~ /--mark-end-color="?(rgb\(\d+,\d+,\d+\)|#[0-9A-F]{6}|none)"?/i;
+        my $clr = $1;
+        $clr =~ tr/[A-Z]/[a-z]/; # switch to lower case.  we don't want "NoNe"
+        if( $clr =~ /^#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})/i )
+        {
+            my($r,$g,$b) = (hex($1),hex($2),hex($3));
+            $clr = "rgb($r,$g,$g)";
+        }
+        $self->set_colors( mark_end_color=>$clr );
+    }
 }
 
 sub set_colors()
@@ -111,6 +177,8 @@ sub set_colors()
     $self->{line_color}   = exists($args{line_color})   ? $args{line_color}    : $self->{line_color};
     $self->{curve_color}  = exists($args{curve_color})  ? $args{curve_color}   : $self->{curve_color};
     $self->{matrl_color}  = exists($args{material_color})  ? $args{material_color}   : $self->{matrl_color};
+    $self->{mark_start_color} = exists($args{mark_start_color})  ? $args{mark_start_color} : $self->{mark_start_color};
+    $self->{mark_end_color}   = exists($args{mark_end_color})    ? $args{mark_end_color}   : $self->{mark_end_color};
 }
 
 sub get_colors()
@@ -119,10 +187,13 @@ sub get_colors()
 
     return (
         moveto_color => $self->{moveto_color},
-        cut_color    => $self->{cut_color},
-        line_color   => $self->{line_color},
-        curve_color  => $self->{curve_color},
-        matrl_color  => $self->{matrl_color},
+           cut_color => $self->{cut_color},
+          line_color => $self->{line_color},
+         curve_color => $self->{curve_color},
+         matrl_color => $self->{matrl_color},
+    mark_start_color => $self->{mark_start_color},
+      mark_end_color => $self->{mark_end_color},
+
     );
 }
 
@@ -136,7 +207,7 @@ sub get_color()
 {
     my $self  = shift;
     my $clrnm = shift;
-    die if $clrnm !~  /^(moveto|cut|line|curve|matrl)_color$/;
+    die if $clrnm !~  /^(moveto|cut|line|curve|matrl|mark_start|mark_end)_color$/;
     return $self->{$clrnm};
 }
 
@@ -197,7 +268,7 @@ sub set_rectagular_material_bounds()
     my $x2 = shift;
     my $y2 = shift;
 
-    push($self->{clist},
+    push( @{$self->{clist}},
         {
             cmd=>'rb',   clr=>$self->{matrl_color},
             sox=>$x1, soy=>$y1,
@@ -234,7 +305,7 @@ sub add_part()
             }
         }
 
-        push($self->{clist}, $c);
+        push( @{$self->{clist}}, $c);
     }
 }
 
@@ -347,7 +418,6 @@ sub gcode_cutting_off
     $self->p( 'M16' );
 }
 
-
 sub gcode_linear_motion()
 {
     my $self = shift;
@@ -410,8 +480,8 @@ sub gcode_arcto()
     $self->print_debug( 1, sprintf("sox:%.02f soy:%.02f tox:%.02f toy:%.02f cx:%.02f cy:%.02f mult:%.02f",
                                    $h->{sox}, $h->{soy}, $h->{tox}, $h->{toy}, $h->{cx}, $h->{cy}, $self->{mult} ) );
 
-    $self->p(
-        sprintf( '%s X%.03f Y%.03f I%.03f J%.03f', $g, #  $h->{tox}, $h->{toy}, ($h->{tox} - $h->{sox}), ($h->{toy} - $h->{soy}), "\n" );
+
+    $self->p( sprintf( '%s X%.03f Y%.03f I%.03f J%.03f', $g,
 
             ($h->{tox} + $self->{xoffset}) * $self->{mult}, 
             ($h->{toy} + $self->{yoffset}) * $self->{mult}, 
@@ -514,13 +584,15 @@ sub print_svg_html_start()
     if( $h != int($h) ) { $h = sprintf("%d", abs($h)+.5 ); }
     if( $w != int($w) ) { $w = sprintf("%d", abs($w)+.5 ); }
 
-    $self->p( '<!DOCTYPE html><html><body><svg height="'.abs($h).'" width="'.abs($w).'">' );
+    if( $self->{inc_html} ) { $self->p( '<!DOCTYPE html><html><body>' ); }
+    $self->p( '<svg height="'.abs($h).'" width="'.abs($w).'">' );
 }
-
+ 
 sub print_svg_html_end()
 {
     my $self = shift;
-    $self->p( "Sorry, your browser does not support inline SVG.</svg></body></html>" );
+    $self->p( "Sorry, your browser does not support inline SVG.</svg>" );
+    if( $self->{inc_html} ) { $self->p( '</body></html>' ); }
 }
 
 sub print_debug()

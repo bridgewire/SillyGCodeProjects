@@ -6,7 +6,6 @@ package Koike::Part;
 use warnings;
 use strict;
 
-#use Koike;
 use Math::Trig;
 use Clone 'clone';
 
@@ -48,11 +47,6 @@ sub new {
     $self->{x} = $self->{startx};                                   # is also current position
     $self->{y} = $self->{starty};
 
-#    $self->{p} = exists($args{protocol}) ? $args{protocol} : 'gcode'; # protocol: svg or gcode
-#    $self->{x} = undef;
-#    $self->{y} = undef;
-
-
     # bounding box.  XXX this doesn't correctly handle arcs,
     # whose extent will often pass beyond end points.
     $self->{xmin} = $self->{x};
@@ -60,18 +54,10 @@ sub new {
     $self->{ymin} = $self->{y};
     $self->{ymax} = $self->{y};
 
-    # the part may be composed of cuts and non-cuts
-    $self->{moveto_color} = exists($args{moveto_color}) ? $args{moveto_color} : $self->{k}->get_color('moveto_color') ;
-    $self->{cut_color}    = exists($args{cut_color})    ? $args{cut_color}    : $self->{k}->get_color('cut_color') ;
-
-
     # offsets and scaling
     $self->{mult}    = exists($args{multsclr})     ? $args{multsclr}      : 1;
 
-    # 
-    $self->{mark_start_color} = 'rgb(0,200,0)';  # green for go
-    $self->{mark_end_color}   = 'rgb(230,0,0)';  # red for stop
-    $self->{mark_dot_radius}  = .2;              # how big around?
+    $self->{mark_dot_radius}  = .2; # how big around should the mark be?
 
 
     bless($self,$class); # bless me! and all who are like me. bless us everyone.
@@ -87,8 +73,6 @@ sub copy()
     $c->set_otherargs( 
         startx          => $self->{startx},
         starty          => $self->{starty},
-        moveto_color    => $self->{moveto_color},
-        cut_color       => $self->{cut_color},
         multsclr        => $self->{mult},
         clist           => $self->{clist},
 
@@ -101,13 +85,8 @@ sub copy()
         ymin => $self->{ymin},
         ymax => $self->{ymax},
 
-        moveto_color => $self->{moveto_color},
-        cut_color => $self->{cut_color},
-
         mult => $self->{mult},
 
-        mark_start_color  => $self->{mark_start_color},
-        mark_end_color    => $self->{mark_end_color},
         mark_dot_radius   => $self->{mark_dot_radius}
     );
 
@@ -164,13 +143,8 @@ sub set_otherargs()
     $self->{ymin} = $args{ymin};
     $self->{ymax} = $args{ymax};
 
-    $self->{moveto_color} = $args{moveto_color};
-    $self->{cut_color}    = $args{cut_color};
-
     $self->{mult}         = $args{mult};
 
-    $self->{mark_start_color} = $args{mark_start_color};
-    $self->{mark_end_color}   = $args{mark_end_color};
     $self->{mark_dot_radius}  = $args{mark_dot_radius};
 }
 
@@ -306,20 +280,15 @@ sub rotate()
 sub set_colors()
 {
     my $self = shift;
-    my %args = @_;
-    $self->{moveto_color} = exists($args{move}) ? $args{move} : $self->{moveto_color};
-    $self->{cut_color}  = exists($args{cut})  ? $args{cut}   : $self->{cut_color};
-
-    if( exists($args{mark_start}) ){ $self->set_marker_parameters( mark_start_color => $args{mark_start} ); }
-    if( exists($args{mark_end})   ){ $self->set_marker_parameters( mark_end_color   => $args{mark_end} ); }
+    $self->{k}->set_colors( @_ );
 }
 
 sub set_marker_parameters()
 {
     my $self = shift;
     my %args = @_;
-    $self->{mark_start_color} = exists($args{mark_start_color}) ?  $args{mark_start_color} : $self->{mark_start_color};
-    $self->{mark_end_color}   = exists($args{mark_end_color})   ?  $args{mark_end_color}   : $self->{mark_end_color};
+    if( exists($args{mark_start_color}) ) { $self->{k}->set_colors(mark_start_color=>$args{mark_start_color}); }
+    if( exists($args{mark_end_color}) )   { $self->{k}->set_colors(  mark_end_color=>$args{mark_end_color}); }
     $self->{mark_dot_radius}  = exists($args{mark_dot_radius})  ?  $args{mark_dot_radius}  : $self->{mark_dot_radius};
 }
 
@@ -431,8 +400,8 @@ sub do_mark()
     $self->push_cmd( { cmd=>$cmd,  clr=>$clr, sox => $self->{x}, soy => $self->{y}, r => $self->{mark_dot_radius} } );
 }
 
-sub mark_start() { my $self = shift; my $clr  = shift || $self->{mark_start_color}; $self->do_mark('os',$clr); }
-sub mark_end()   { my $self = shift; my $clr  = shift || $self->{mark_end_color};   $self->do_mark('oe',$clr); }
+sub mark_start() { my $self = shift; my $clr  = shift || $self->{k}->get_color('mark_start_color'); $self->do_mark('os',$clr); }
+sub mark_end()   { my $self = shift; my $clr  = shift || $self->{k}->get_color('mark_end_color');   $self->do_mark('oe',$clr); }
 
 
 sub lineto()
@@ -447,7 +416,7 @@ sub lineto()
     if( $self->update_position( $newx, $newy ) )
     {
         $self->push_cmd( {
-                cmd=>'l',   clr=>$self->{cut_color}, 
+                cmd=>'l',   clr=>$self->{k}->get_color('cut_color'), 
                 sox=>$sox,  soy=>$soy,
                 tox=>$newx, toy=>$newy } );
     }
@@ -648,7 +617,7 @@ sub arcto()
     # for complete circles the next position will equal the start, so add command
     # even if the current position didn't change.
     $self->push_cmd( {
-            cmd=>'a',        clr=>(exists($args{clr}) ? $args{clr} : $self->{cut_color}), 
+            cmd=>'a',        clr=>(exists($args{clr}) ? $args{clr} : $self->{k}->get_color('cut_color') ), 
             sox=>$sox,       soy=>$soy,
             tox=>$tox,       toy=>$toy,
             sweep=>$sweep,   largearc=>$largearc,
