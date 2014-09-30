@@ -206,7 +206,7 @@ sub hexagon_grid_firstrow()
         $h->translate( ($sl * sqrt(3)), 0 );
     }
 
-    $h->translate( -($sl * sqrt(3)), -1 );
+    $h->translate( -($sl * sqrt(3)), -$sl/2.0 );
 
     $h->mark_end();
 
