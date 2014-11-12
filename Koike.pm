@@ -1,12 +1,17 @@
 #!/usr/bin/perl -w
 
-use IO::File;
-use IO::Handle;
+# Author:  Christiana Evelyn Johnson
+# Copyright (c) 2014 Reno Bridgewire
+# license: The MIT License (MIT)
 
 package Koike;
 
 use strict;
 use warnings;
+
+use IO::File;
+use IO::Handle;
+use Clone 'clone';
 
 BEGIN
 {
@@ -54,7 +59,7 @@ sub new {
     $self->{cut_color}    = exists($args{cut_color})    ? $args{cut_color}     : $dfltclr;
     $self->{line_color}   = exists($args{line_color})   ? $args{line_color}    : $dfltclr;
     $self->{curve_color}  = exists($args{curve_color})  ? $args{curve_color}   : $dfltclr;
-    $self->{matrl_color}  = exists($args{material_color})  ? $args{material_color}   : 'rgb(200,255,255)';
+    $self->{matrl_color}  = exists($args{material_color})  ? $args{material_color}   : 'rgb(240,245,210)';
     $self->{mark_start_color} = exists($args{mark_start_color})  ? $args{mark_start_color} : 'rgb(0,200,0)';
     $self->{mark_end_color}   = exists($args{mark_end_color})    ? $args{mark_end_color}   : 'rgb(230,0,0)';
 
@@ -102,6 +107,7 @@ sub process_cmdlineargs()
 
     # process command-line arguments
     if( grep(/--svg/, @argv) ) { $self->{p} = 'svg'; }
+    if( grep(/--gcode/, @argv) ) { $self->{p} = 'gcode'; }
     if( (my @l = grep(/--mult=-?[0-9.]+/,  @argv)) ){ $l[0] =~ /--mult=(-?[0-9.]+)/;  $self->{mult}  = $1; }
     if( (my @l = grep(/--d(ebug)?=[0-9]+/, @argv)) ){ $l[0] =~ /--d(ebug)?=([0-9]+)/; $self->{DEBUG} = $2; }
 
@@ -113,7 +119,7 @@ sub process_cmdlineargs()
         if( $clr =~ /^#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})/i )
         {
             my($r,$g,$b) = (hex($1),hex($2),hex($3));
-            $clr = "rgb($r,$g,$g)";
+            $clr = "rgb($r,$g,$b)";
         }
         $self->set_colors( moveto_color=>$clr );
     }
@@ -125,7 +131,7 @@ sub process_cmdlineargs()
         if( $clr =~ /^#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})/i )
         {
             my($r,$g,$b) = (hex($1),hex($2),hex($3));
-            $clr = "rgb($r,$g,$g)";
+            $clr = "rgb($r,$g,$b)";
         }
         $self->set_colors( cut_color=>$clr );
     }
@@ -137,9 +143,9 @@ sub process_cmdlineargs()
         if( $clr =~ /^#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})/i )
         {
             my($r,$g,$b) = (hex($1),hex($2),hex($3));
-            $clr = "rgb($r,$g,$g)";
+            $clr = "rgb($r,$g,$b)";
         }
-        $self->set_colors( matrl_color=>$clr );
+        $self->set_colors( material_color=>$clr );
     }
     if( (my @l = grep(/--mark-start-color="?(rgb\(\d+,\d+,\d+\)|#[0-9A-F]{6}|none)"?/i, @argv)) )
     {
@@ -149,7 +155,7 @@ sub process_cmdlineargs()
         if( $clr =~ /^#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})/i )
         {
             my($r,$g,$b) = (hex($1),hex($2),hex($3));
-            $clr = "rgb($r,$g,$g)";
+            $clr = "rgb($r,$g,$b)";
         }
         $self->set_colors( mark_start_color=>$clr );
     }
@@ -161,7 +167,7 @@ sub process_cmdlineargs()
         if( $clr =~ /^#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})/i )
         {
             my($r,$g,$b) = (hex($1),hex($2),hex($3));
-            $clr = "rgb($r,$g,$g)";
+            $clr = "rgb($r,$g,$b)";
         }
         $self->set_colors( mark_end_color=>$clr );
     }
@@ -197,11 +203,8 @@ sub get_colors()
     );
 }
 
-sub get_protocol()
-{
-    my $self  = shift;
-    return $self->{p};
-}
+sub get_protocol() { my $self = shift; return $self->{p}; }
+sub set_protocol() { my $self = shift; my $p = shift; if($p =~ /^(gcode|svg)$/){ $self->{p} = $p; } }
 
 sub get_color()
 {
@@ -229,6 +232,18 @@ sub update_bounds()
         $self->{ymin} = ( $self->{ymin} < $newy ? $self->{ymin} : $newy );
         $self->{ymax} = ( $self->{ymax} > $newy ? $self->{ymax} : $newy );
     }
+}
+
+
+sub get_shifted_bounds()
+{
+    my $self = shift;
+    return (
+            ($self->{xmin} + $self->{xoffset}) * $self->{mult},
+            ($self->{ymin} + $self->{yoffset}) * $self->{mult},
+            ($self->{xmax} + $self->{xoffset}) * $self->{mult},
+            ($self->{ymax} + $self->{yoffset}) * $self->{mult}
+    );
 }
 
 sub update_position()
@@ -263,12 +278,17 @@ sub get_current_position()
 sub set_rectagular_material_bounds()
 {
     my $self = shift;
-    my $x1 = shift;
-    my $y1 = shift;
-    my $x2 = shift;
-    my $y2 = shift;
+    my $x1 = shift || $self->{xmin};
+    my $y1 = shift || $self->{ymin};
+    my $x2 = shift || $self->{xmax};
+    my $y2 = shift || $self->{ymax};
 
-    push( @{$self->{clist}},
+
+    $self->update_bounds( $x1, $y1 );
+    $self->update_bounds( $x2, $y2 );
+
+    # this should always be the first command
+    unshift( @{$self->{clist}},
         {
             cmd=>'rb',   clr=>$self->{matrl_color},
             sox=>$x1, soy=>$y1,
@@ -369,10 +389,10 @@ sub svg_endpoint()
     my $h = shift;
 
     $self->p(
-        sprintf( '<circle cx="%.03f", cy="%.03f", r="%.03f", fill="%s" stroke="none" />', 
+        sprintf( '<circle cx="%.03f" cy="%.03f" r="%.03f" fill="%s" stroke="none" />', 
             (($h->{sox} + $self->{xoffset}) * $self->{mult}),
             (($h->{soy} + $self->{yoffset}) * $self->{mult}),
-            ( $h->{r}              * 5 * log( $self->{mult} )),  # scale the size of the dot at a non-linear rate. 5*log(r) chosen after experimentation
+            ( $h->{r}              * 5 * log( ($self->{mult} < 3 ? 3 : $self->{mult}) )),  # scale the size of the dot at a non-linear rate. 5*log(r) chosen after experimentation
             $h->{clr} )
     );
 
@@ -387,7 +407,7 @@ sub svg_rectangular_background()
     my $ht = abs($h->{soy} - $h->{toy});
 
     $self->p(
-        sprintf( '<rect x="%.03f", y="%.03f", width="%.03f", height="%.03f", fill="%s" stroke="none" />', 
+        sprintf( '<rect x="%.03f" y="%.03f" width="%.03f" height="%.03f" fill="%s" stroke="none" />', 
             (($h->{sox} + $self->{xoffset}) * $self->{mult}),
             (($h->{soy} + $self->{yoffset}) * $self->{mult}),
             abs($wd * $self->{mult}),
@@ -418,43 +438,106 @@ sub gcode_cutting_off
     $self->p( 'M16' );
 }
 
+sub gcode_prep_coords()
+{
+    my $self = shift;
+    my $h = shift;
+
+    my ( $Xstr, $Ystr, $Istr, $Jstr );
+
+    ##################################################################################################################
+    $Xstr = sprintf( '%.03f%s', ($h->{tox} + $self->{xoffset}) * $self->{mult}, ($self->{verbosegcode} ? ' ' : ''));
+    $Ystr = sprintf( '%.03f%s', ($h->{toy} + $self->{yoffset}) * $self->{mult}, ($self->{verbosegcode} ? ' ' : '') );
+
+    # remove unnecessary trailing zeros.  again, this is to reduce the data size.
+    if( ! $self->{verbosegcode} )
+    {
+        if( $Xstr =~ s/0+$// ){ $Xstr =~ s/\.$//; }
+        if( $Ystr =~ s/0+$// ){ $Ystr =~ s/\.$//; }
+    }
+
+    # remove negative from zero
+    $Xstr =~ s/^-([.0 ]+)$/$1/;
+    $Ystr =~ s/^-([.0 ]+)$/$1/;
+    ##################################################################################################################
+
+    ##################################################################################################################
+    if( exists($h->{cx}) )
+    {
+        $Istr = sprintf( '%.03f%s', ($h->{cx} - $h->{sox})    * $self->{mult}, ($self->{verbosegcode} ? ' ' : ''));
+        $Jstr = sprintf( '%.03f%s', ($h->{cy} - $h->{soy})    * $self->{mult}, ($self->{verbosegcode} ? ' ' : '') );
+
+        # remove unnecessary trailing zeros.  again, this is to reduce the data size.
+        if( ! $self->{verbosegcode} )
+        {
+            if( $Istr =~ s/0+$// ){ $Istr =~ s/\.$//; }
+            if( $Jstr =~ s/0+$// ){ $Jstr =~ s/\.$//; }
+        }
+
+        # remove negative from zero
+        $Istr =~ s/^-([.0 ]+)$/$1/;
+        $Jstr =~ s/^-([.0 ]+)$/$1/;
+    }
+    ##################################################################################################################
+
+
+    if( defined($Istr) )
+    {
+        $self->print_debug( 1,
+            sprintf('in gcode_prep_coords() xoffset==%.03f returning: %.03f,%.03f,%.03f,%.03f from tox,toy==%.03f,%.03f',
+                    $self->{xoffset}, $Xstr, $Ystr, $Istr, $Jstr, $h->{tox}, $h->{toy}) );
+
+    }
+    else
+    {
+        $self->print_debug( 1, 
+            sprintf('in gcode_prep_coords() xoffset==%.03f returning: %.03f,%.03f from tox,toy==%.03f,%.03f', 
+                    $self->{xoffset}, $Xstr, $Ystr, $h->{tox}, $h->{toy} ) );
+    }
+
+
+    return ($Xstr, $Ystr, $Istr, $Jstr);
+}
+
+sub gcode_prep_cmd_start()
+{
+    my $self = shift;
+    my $g = shift;
+
+    die "assertion failed. gcode_prep_cmd_start() handles G0[0123] only. got: \"$g\"" if ( $g !~ /^G0[0123]$/ );
+
+    if( $self->{addcutting} )
+    {
+        # the cutting tool is stoped during a G00 movement
+        # for all other motions it's on
+        if   ( $g eq 'G00' )       { $self->gcode_cutting_off(); }
+        elsif( $g =~ /^G0[123]$/ ) { $self->gcode_cutting_on(); }
+    }
+
+    # data transfer to the the Koike is very slow, so reduce
+    # characters whenever it makes sense. (or when possible.)
+    if( $self->{LASTGCMD} eq $g && ! $self->{verbosegcode} )
+    {
+        $g = '';
+    }
+    else
+    {
+        $self->{LASTGCMD} = $g;
+        $g .= ' ';
+    }
+
+    return $g;
+}
+
 sub gcode_linear_motion()
 {
     my $self = shift;
     my $h = shift;
     my $s = shift;
 
-    if( $self->{addcutting} )
-    {
-        # if changing between linear modes, enable or disable the cutting head appropriately
-        if   ( $s eq 'G00' ) { $self->gcode_cutting_off(); }
-        elsif( $s eq 'G01' ) { $self->gcode_cutting_on(); }
-    }
+    $s = $self->gcode_prep_cmd_start( $s );
 
-    if( length($s) > 0 )
-    {
-        # data transfer to the the Koike is very slow, so reduce
-        # characters whenever it makes sense. (or when possible.)
-        if( $self->{LASTGCMD} eq $s && ! $self->{verbosegcode} )
-        {
-            $s = '';
-        }
-        else
-        {
-            $self->{LASTGCMD} = $s;
-            $s .= ' ';
-        }
-    }
-
-    # remove unnecessary trailing zeros.  again, this is to reduce the data size.
-    my $xstr = sprintf( '%.03f%s', ($h->{tox} + $self->{xoffset}) * $self->{mult}, ($self->{verbosegcode} ? ' ' : ''));
-    my $ystr = sprintf( '%.03f%s', ($h->{toy} + $self->{yoffset}) * $self->{mult}, ($self->{verbosegcode} ? ' ' : '') );
-
-    if( ! $self->{verbosegcode} )
-    {
-        if( $xstr =~ s/0+$// ){ $xstr =~ s/\.$//; }
-        if( $ystr =~ s/0+$// ){ $ystr =~ s/\.$//; }
-    }
+    my ($xstr, $ystr) = $self->gcode_prep_coords($h);
 
     $self->p( sprintf( '%sX%sY%s', $s, $xstr, $ystr ) );
 }
@@ -469,26 +552,14 @@ sub gcode_arcto()
     # In SVG, 'sweep' is a positive angle, but rotates clockwise.
     # In Koike gcode we decide that sweep is still positive, but counter-clockwise.
     # This correctly implements the mirror image flip around the x-axis
-    my $g = $h->{sweep} ? 'G03' : 'G02' ;
-
-    # I assume G02/3 are rarely used, so I won't bother, for now, with the space-saving code.
-    # The purpose of this is just so that ($self->{LASTGCMD} != 'G00/1')
-    $self->{LASTGCMD} = $g;
-
-    if( $self->{addcutting} ) { $self->gcode_cutting_on(); }
+    my $g = $self->gcode_prep_cmd_start( $h->{sweep} ? 'G03' : 'G02' );
 
     $self->print_debug( 1, sprintf("sox:%.02f soy:%.02f tox:%.02f toy:%.02f cx:%.02f cy:%.02f mult:%.02f",
                                    $h->{sox}, $h->{soy}, $h->{tox}, $h->{toy}, $h->{cx}, $h->{cy}, $self->{mult} ) );
 
+    my ($xstr, $ystr, $istr, $jstr) = $self->gcode_prep_coords($h);
 
-    $self->p( sprintf( '%s X%.03f Y%.03f I%.03f J%.03f', $g,
-
-            ($h->{tox} + $self->{xoffset}) * $self->{mult}, 
-            ($h->{toy} + $self->{yoffset}) * $self->{mult}, 
-
-            ($h->{cx} - $h->{sox}) * $self->{mult}, 
-            ($h->{cy} - $h->{soy}) * $self->{mult} )
-    );
+    $self->p( sprintf( '%sX%.03fY%.03fI%.03fJ%.03f', $g, $xstr, $ystr, $istr, $jstr ) );
 }
 
 sub set_height_width()     { my $self = shift; $self->{height}  = shift; $self->{width}    = shift; }
@@ -528,6 +599,87 @@ sub printall()
     }
 
     &{$cmds{end}}( $self );
+}
+
+sub copy()
+{
+    my $self = shift;
+    my $newk = new Koike(
+    debug => $self->{DEBUG},
+    protocol => $self->{p},
+    moveto_color => $self->{moveto_color},
+    cut_color => $self->{cut_color},
+    line_color => $self->{line_color},
+    curve_color => $self->{curve_color},
+    material_color => $self->{matrl_color},
+    mark_start_color => $self->{mark_start_color},
+    mark_end_color => $self->{mark_end_color},
+    multsclr => $self->{mult},
+    xoffset => $self->{xoffset},
+    yoffset => $self->{yoffset},
+    abscoords => $self->{abscoords},
+    absIJKcoords => $self->{absIJKcoords},
+    verbosegcode => $self->{verbosegcode},
+    addcutting => $self->{addcutting},
+    includehtml => $self->{inc_html} );
+
+
+    $newk->copy_priv(
+            xmin => $self->{xmin},
+            xmax => $self->{xmax},
+            ymin => $self->{ymin},
+            ymax => $self->{ymax},
+            height => $self->{height},
+            width => $self->{width},
+            clist => $self->{clist},
+            cuttingon => $self->{cuttingon},
+            LASTGCMD => $self->{LASTGCMD},
+    );
+
+    return $newk;
+}
+
+sub copy_priv()
+{
+    my $self = shift;
+    my %args = @_;
+
+    $self->{x} = $args{x};
+    $self->{y} = $args{y};
+
+    $self->{xmin} = $args{xmin};
+    $self->{xmax} = $args{xmax};
+    $self->{ymin} = $args{ymin};
+    $self->{ymax} = $args{ymax};
+    $self->{height} = $args{height};
+    $self->{width} = $args{width};
+
+    $self->{clist} = clone $args{clist};
+
+    $self->{cuttingon} = $args{cuttingon};
+    $self->{LASTGCMD} = $args{LASTGCMD};
+}
+
+
+sub dump_part()
+{
+    my $self = shift;
+    my $part = shift;
+
+    my $coike = $self->copy();
+
+    $coike->use_stderr();
+    $coike->set_protocol( 'gcode' );
+    $coike->wipe_clist();
+
+    $coike->add_part( $part );
+    $coike->printall();
+}
+
+sub wipe_clist()
+{
+    my $self = shift;
+    $self->{'clist'} = [];
 }
 
 sub print_koike_gcode_start()
@@ -606,6 +758,19 @@ sub print_debug()
         chomp($d);
         print STDERR $d,' debugging -- ',$msg,"\n";
     }
+}
+
+sub debug_level_sufficient()
+{
+    my $self = shift;
+    my $ordinal_importance = shift;  # the smaller the number used, the more likely it is that print_debug will generate output
+    return ( $self->{DEBUG} >= $ordinal_importance );
+}
+
+sub use_stderr()
+{
+    my $self = shift;
+    $self->{fh}->fdopen(fileno(STDERR),"w");
 }
 
 

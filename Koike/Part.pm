@@ -1,5 +1,9 @@
 #!/usr/bin/env perl
 
+# Author:  Christiana Evelyn Johnson
+# Copyright (c) 2014 Reno Bridgewire
+# license: The MIT License (MIT)
+
 use v5.10.0;
 package Koike::Part;
 
@@ -73,7 +77,6 @@ sub copy()
     $c->set_otherargs( 
         startx          => $self->{startx},
         starty          => $self->{starty},
-        multsclr        => $self->{mult},
         clist           => $self->{clist},
 
         clist_position  => $self->{clist_position},
@@ -93,34 +96,238 @@ sub copy()
     return $c;
 }
 
-sub merge()
+# go through the whole path of $self and reverse the direction of travel.
+# the last command becomes the first, the last set of coordinates becomes
+# startx,starty, and the old startx,starty becomes the current position: x,y.
+sub reverse_path()
+{
+    my $self = shift;
+
+    my ( $new_startx, $new_starty ) = $self->end_coords();
+    my ( $new_curx  , $new_cury   ) = $self->start_coords();
+    my $new_clist = [];
+
+    my ($x,$y);
+
+    my $h;
+    for( my $i = $#{$self->{clist}}; $i >= 0; $i-- )
+    {
+        $h = ${$self->{clist}}[$i];
+
+        if( exists( $h->{toy} ) )
+        {
+            my ($oldtox, $oldtoy) = ( $h->{tox}, $h->{toy} );
+
+            $h->{tox} = $h->{sox};
+            $h->{toy} = $h->{soy};
+            $h->{sox} = $oldtox;
+            $h->{soy} = $oldtoy;
+        }
+        elsif( $h->{cmd} eq 'os' || $h->{cmd} eq 'oe' )
+        {
+            # start and end marks may need to look ahead (or 'back'...
+            # decrementing $i) in the list to see where they should actually be
+
+            if( $i <  $#{$self->{clist}} && $i > 0 )
+            {
+                # NOTE:  $prev_h is already altered but $next_h is not
+                my $prev_h = ${$self->{clist}}[$i+1];
+                my $next_h = ${$self->{clist}}[$i-1];
+
+                if( $h->{cmd} eq 'os' && exists($prev_h->{toy}) )
+                {
+                    # os (martk-start) got it's coordinates from $i-1:tox,toy and gave them to $i+1:$sox,soy
+                    # but should take them now from $i+1
+
+                    if( $h->{sox} == $prev_h->{tox} && $h->{soy} == $prev_h->{toy} )
+                    {
+                        # if verified, execute the switch
+                        $h->{sox} = $prev_h->{sox};
+                        $h->{soy} = $prev_h->{soy};
+                    }
+                }
+                elsif( $h->{cmd} eq 'oe' && exists($next_h->{toy}) )
+                {
+                    # start got it's coordinates from $i+1
+                    # but should take them now from $i-1
+
+                    # if verified, execute the switch
+                    if( $h->{sox} == $prev_h->{sox} && $h->{soy} == $prev_h->{soy} )
+                    {
+                        $h->{sox} = $next_h->{tox};
+                        $h->{soy} = $next_h->{toy};
+                    }
+                }
+            }
+            elsif ( $i == 0 )
+            {
+                my $prev_h = ${$self->{clist}}[1];
+                if( $h->{sox} == $prev_h->{sox} && $h->{soy} == $prev_h->{soy} )
+                {
+                    $h->{sox} = $prev_h->{tox};
+                    $h->{soy} = $prev_h->{toy};
+                }
+            }
+            elsif ( $i == $#{$self->{clist}} )
+            {
+                # this is a mark that was at the end and should now be at the start
+                my $next_h = ${$self->{clist}}[$i-1];
+                if( $h->{sox} == $next_h->{tox} && $h->{soy} == $next_h->{toy} )
+                {
+                    $h->{sox} = $next_h->{sox};
+                    $h->{soy} = $next_h->{soy};
+                }
+            }
+        }
+
+        # reversing the direction of travel means reversing direction of the angle too.
+        # The center and long vs. short arc length don't change, so this completes the arc changes.
+        if( exists( $h->{sweep} ) )
+        {
+            $h->{sweep} = ! $h->{sweep};
+        }
+
+        # hopefully it is helpful to reverse start and end marks
+        if( $h->{cmd} eq 'os' || $h->{cmd} eq 'oe' )
+        {
+            $h->{cmd} = ( $h->{cmd} eq 'oe' ? 'os' : 'oe' );
+            if   ( $h->{cmd} eq 'os' ) { $h->{clr} = $self->{k}->get_color('mark_start_color'); }
+            elsif( $h->{cmd} eq 'oe' ) { $h->{clr} = $self->{k}->get_color('mark_end_color'); }
+        }
+
+        push( @{$new_clist}, $h );
+    }
+
+    ( $self->{startx}, $self->{starty} ) = ( $new_startx, $new_starty );
+    ( $self->{x}, $self->{y} ) = ( $new_curx, $new_cury );
+
+    $self->{clist} = $new_clist;
+}
+
+
+
+# the intended syntax of merge:  '$part->merge( $otherpart )' suggests to me
+# that if one or the other of these parts is 'dominant' then it would be $part
+# since that's the one whose member function is being called. The mechanics of
+# how this is actually done, however, due to ease of access to the clist, the
+# actual implemenation likely appends $part to $otherpart, which has the 'feel'
+# of $otherpart being dominant. so we export 'merge' as the implementor of this
+# functionality, but in order to make merge operate more intuitively, we add
+# 'reverse_merge' which is the actual implementation, and merge() simply calls
+# reverse_merge after, itself, reversing the sense of the call.
+sub reverse_merge()
 {
     # begin with cloning otherpart
     #  'this' part cyles through its own command-list (the clist) and uses the otherpart's push_cmd
-    #  method to append our commends to it's commands
+    #  method to append our commands to it's commands
 
     my $self = shift;
-    my $otherpart = shift;
+    my $root = shift;  # 'root' is the part that self gets merged into
+    my $n;             # 'n' will be the new part, a combination of the two merging
 
-    my $newmerged = $otherpart->copy();
+    my ($r_xs, $r_ys, $r_xe, $r_ye) = ( $root->start_coords(), $root->end_coords() );
+    my ($s_xs, $s_ys, $s_xe, $s_ye) = ( $self->start_coords(), $self->end_coords() );
 
-    my ($linking_x, $linking_y) = $newmerged->get_current_position();
 
-    if( $linking_x != $self->{startx} || $linking_y != $self->{starty} )
+    $self->{k}->print_debug( 2, sprintf('reverse_merge got: root(xs:%f, ys:%f, xe:%f, ye:%f) -- self(xs:%f, ys:%f, xe:%f, ye:%f) -- r_xe is%s equal to s_xe',
+
+    $r_xs, $r_ys, $r_xe, $r_ye,
+    $s_xs, $s_ys, $s_xe, $s_ye, 
+
+    (($r_xe == $s_xe) ? "" : " not") )
+   
+    );
+
+
+    # simplest case: if self starts where root ends, then append self to root
+    if( abs($s_xs - $r_xe) < .00001 && abs($s_ys - $r_ye) < .00001 )
     {
-        $newmerged->moveto( $self->{startx}, $self->{starty} );
+        $self->{k}->print_debug( 2, 'reverse_merge handling simples case' );
+
+        $n = $root->copy();
+        for( my $i = 0; $i <= $#{$self->{clist}}; $i++ )
+        {
+            $n->push_cmd( ${$self->{clist} }[$i] );
+        }
+        $n->update_position( $self->{x}, $self->{y}, 0 );
+        $n->auto_remake_bounding_box();
+    }
+    # next simplest.
+    # else: if other start where self ends, then use recursion to reverse the roles
+    #  XXX or...  if we want to preserve the roles, do we reverse both paths?
+    #elsif( $r_xs == $s_xe && $r_ys == $s_ye )
+    elsif( abs($r_xs - $s_xe) < .00001 && abs($r_ys - $s_ye) < .00001 )
+    {
+        $self->{k}->print_debug( 2, 'reverse_merge handling next simples case' );
+        $n = $root->reverse_merge( $self );
+    }
+    # more complex
+    # else:
+    # we have already established that the start of neither is the end of the other
+    # so if the two parts have any endpoints in common, either the starts are the
+    # same or the ends are the same.  first test for common starts.
+    #elsif( $r_xs == $s_xs && $r_ys == $s_ys )
+    elsif( abs($r_xs - $s_xs) < .00001 && abs($r_ys - $s_ys) < .00001 )
+    {
+        # how to deal with this? in the paradigm used by this library (a part
+        # is a single path with a clear start and clear end, with possible
+        # self-intersection), we cannot start in the middle of a path.  We have
+        # to start at one end or the other, thus one of the two parts must be
+        # reversed. Since we want 'root' to provide the startx,starty to the
+        # merged part, we reverse root so that its last coordinate becomes its
+        # first, reversing commands too.  this is most trick with respect to 
+        # arcs. we'll have to reverse the sweep. do this in a seperate function,
+        # called 'reverse_path'
+
+        $self->{k}->print_debug( 2, 'reverse_merge doing root->reverse_path' );
+        $root->reverse_path();
+        $n = $root->merge( $self );
+    }
+    # else:
+    # the two parts meet at their respective ends.
+    # reverse the path of 'self' (as opposed to reversing root)
+    #elsif( $r_xe == $s_xe && $r_ye == $s_ye )
+    elsif( abs($r_xe - $s_xe) < .00001 && abs($r_ye - $s_ye) < .00001 )
+    {
+        $self->{k}->print_debug( 2, 'reverse_merge doing self->reverse_path' );
+        $self->reverse_path();
+        # now we have ( $r_xe = $s_xs && $r_ye = $s_ys )
+        ($s_xs, $s_ys, $s_xe, $s_ye) = ( $self->start_coords(), $self->end_coords() );
+        #die "assertion failed" if !  ( $s_xs == $r_xe && $s_ys == $r_ye );
+        die "assertion failed" if !  (abs($s_xs - $r_xe) < .00001 && abs($s_ys - $r_ye) < .00001);
+        
+        $n = $root->merge( $self );
+    }
+    # if none of the endpoints match up then we just do a 'moveto' from the
+    # enpoint
+    else
+    {
+        $self->{k}->print_debug( 2, 'reverse_merge doing the original algo.' );
+        $root->dump_part('root');  # dump produces output at debug level 7.
+        $self->dump_part('self');
+        $self->{k}->print_debug( 2, sprintf('adding a moveto from: root(xe:%f, ye:%f) -- self(xs:%f, ys:%f)', $r_xe, $r_ye, $s_xs, $s_ys ) );
+
+        $n = $root->copy();
+        $n->moveto( $self->start_coords() );
+
+        for( my $i = 0; $i <= $#{$self->{clist}}; $i++ )
+        {
+            $n->push_cmd( ${$self->{clist} }[$i] );
+        }
+        $n->update_position( $self->{x}, $self->{y}, 0 );
+        $n->auto_remake_bounding_box();
     }
 
-    for( my $i = 0; $i <= $#{$self->{clist}}; $i++ )
-    {
-        $newmerged->push_cmd( ${$self->{clist}}[$i] );
-    }
+    return $n;
+}
 
-    $newmerged->update_position( $self->{x}, $self->{y} );
+sub merge()
+{
+    my $self = shift;
+    my $o = shift;  # 'o' is the 'otherpart'
 
-    $newmerged->auto_remake_bounding_box();
-
-    return $newmerged;
+    # to make the 'merge' syntax more intuitive (to me) internally we reverse the order...
+    return $o->reverse_merge( $self );
 }
 
 sub set_otherargs()
@@ -167,11 +374,81 @@ sub next_command()
     return undef;
 }
 
+sub start_coords()
+{
+    my $self = shift;
+    return ( $self->{startx}, $self->{starty} )
+}
+
+sub end_coords()
+{
+    my $self = shift;
+    my ( $x, $y ) = ( $self->{startx}, $self->{starty} );
+
+    my $h = $self->last_command();
+    if( defined($h) )
+    {
+        my $debug_coords_source = 'sox,soy';
+        if( exists( $h->{toy} ) )
+        {
+            ( $x, $y ) = ($h->{tox}, $h->{toy});
+            $debug_coords_source = 'tox,toy';
+        }
+        else
+        {
+            ( $x, $y ) = ($h->{sox}, $h->{soy});
+        }
+
+        $self->{k}->print_debug( 2, sprintf('end_coords pulled %s: %.02f,%.02f via cmd:%s', $debug_coords_source, $x, $y, $h->{cmd} ) );
+
+    }
+
+    return ( $x, $y );
+}
+
+
+sub first_command()
+{
+    my $self = shift;
+    if( $#{$self->{clist}} > -1 ) { return ${$self->{clist}}[0]; }
+    return undef;
+}
+
+sub last_command()
+{
+    my $self = shift;
+    if( $#{$self->{clist}} > -1 ) { return ${$self->{clist}}[$#{$self->{clist}}]; }
+    return undef;
+}
+
+# this is like translate() but it does an absolute shift instead of a relative shift
+# $shiftfrom_x and $shiftfrom_y allow a different point in $self to represent the "handle" of $self
+sub reposition()
+{
+    my $self = shift;
+    my $shifto_x = shift;
+    my $shifto_y = shift;
+    my $shiftfrom_x = shift || $self->{startx};
+    my $shiftfrom_y = shift || $self->{starty};
+
+    #$self->{k}->print_debug( 2, sprintf('resposition doing translate() and translate()', -$shiftfrom_x, -$shiftfrom_y,  $shifto_x, $shifto_y ) );
+
+    $self->translate( -$shiftfrom_x, -$shiftfrom_y );
+    $self->translate( $shifto_x, $shifto_y );
+}
+
 sub translate()
 {
     my $self = shift;
     my $xshift = shift;
     my $yshift = shift;
+
+
+    if( ${$self->{clist}}[0]->{sox} != $self->{startx} ||  ${$self->{clist}}[0]->{soy} != $self->{starty} )
+    {
+        $self->{k}->print_debug( 1, sprintf('start-point mismatch at start of translate: sox,soy:(%.03f,%.03f) != startx,starty:(%.03f,%.03f)',
+                                            ${$self->{clist}}[0]->{sox}, ${$self->{clist}}[0]->{soy}, $self->{startx}, $self->{starty} ) );
+    }
 
     # shift every coordinate
     for( my $i = 0; $i <= $#{$self->{clist}}; $i++ )
@@ -200,6 +477,13 @@ sub translate()
     $self->{starty} += $yshift;
 
     $self->auto_remake_bounding_box();
+
+    if( ${$self->{clist}}[0]->{sox} != $self->{startx} ||  ${$self->{clist}}[0]->{soy} != $self->{starty} )
+    {
+        $self->{k}->print_debug( 1, sprintf('start-point mismatch at end of translate: sox,soy:(%.03f,%.03f) != startx,starty:(%.03f,%.03f)',
+                                            ${$self->{clist}}[0]->{sox}, ${$self->{clist}}[0]->{soy}, $self->{startx}, $self->{starty} ) );
+    }
+
 }
 
 sub scale()
@@ -217,7 +501,7 @@ sub matrix_mult()
     my $vec = shift;
 
 
-    $self->{k}->print_debug( 8, 
+    $self->{k}->print_debug( 10, 
           '$$mat[0][0] == '.(exists($$mat[0][0]) && defined($$mat[0][0])?"exists:".$$mat[0][0]:"nonesuch").
           '$$vec[0] == '.(exists($$vec[0]) && defined($$vec[0])?"exists:".$$vec[0]:"nonesuch").
           '$$mat[0][1] == '.(exists($$mat[0][1]) && defined($$mat[0][1])?"exists:".$$mat[0][1]:"nonesuch").
@@ -269,7 +553,7 @@ sub rotate()
     my $angle = shift;
     my $units = shift || 'radians';  # what's the angle unit?  default is radians.
 
-    $self->{k}->print_debug( 3, "rotate() received -- angle:$angle , units:$units" );
+    $self->{k}->print_debug( 9, "rotate() received -- angle:$angle , units:$units" );
 
     if( $units =~ /degree/ ) { $angle = deg2rad($angle); }
 
@@ -350,19 +634,27 @@ sub update_position()
     my $self = shift;
     my $newx = shift;
     my $newy = shift;
+    my $update_startxy = shift || 1;
 
     if( defined($self->{x}) && $self->{x} == $newx && $self->{y} == $newy )
     {
         # did the position change?
-        return 0;
+        return 0; # no it did not. return false.
     }
 
     $self->update_bounds( $newx, $newy );
 
+    # if we haven't started yet, then update_position() changes the start position
+    if( $update_startxy && $#{$self->{clist}} < 0 )
+    {
+        $self->{startx} = $newx;
+        $self->{starty} = $newy;
+    }
+
     $self->{x} = $newx;
     $self->{y} = $newy;
 
-    return 1;
+    return 1; # return true
 }
 
 sub get_current_position()
@@ -381,7 +673,7 @@ sub moveto()
     my $sox = $self->{x};
     my $soy = $self->{y};
     
-    if( $self->update_position( $newx, $newy ) )
+    if( $self->update_position( $newx, $newy, 0 ) )
     {
         $self->push_cmd( {
                 cmd=>'m',   clr=>$self->{k}->get_color('moveto_color'),
@@ -412,8 +704,8 @@ sub lineto()
 
     my $sox = $self->{x};
     my $soy = $self->{y};
-    
-    if( $self->update_position( $newx, $newy ) )
+
+    if( $self->update_position( $newx, $newy, 0 ) )
     {
         $self->push_cmd( {
                 cmd=>'l',   clr=>$self->{k}->get_color('cut_color'), 
@@ -633,7 +925,7 @@ sub arcto()
             $cx,        $cy,
             $rdus * $self->{mult} ));
 
-    $self->update_position( $tox, $toy );
+    $self->update_position( $tox, $toy, 0 );
 }
 
 sub push_cmd
@@ -656,8 +948,54 @@ sub push_cmd
     if( exists($args->{cy})       ){ $href->{cy}       = $args->{cy}; }
     if( exists($args->{radius})   ){ $href->{radius}   = $args->{radius}; }
 
-    push($self->{clist}, $href) if(  keys %{$href} >= 1 ) ;
+    push(@{$self->{clist}}, $href) if(  keys %{$href} >= 1 ) ;
 }
+
+sub dump_part()
+{
+    my $self = shift;
+    my $lbl = shift;
+
+    if( $self->{k}->debug_level_sufficient( 7 ) )
+    {
+        for( my $i = 0; $i <= $#{$self->{clist}}; $i++ )
+        {
+            my $dbgs = '';
+            my $cmd = ${$self->{clist}}[$i];
+            foreach my $c ( 'cmd', 'sox', 'soy', 'tox', 'toy', 'r', 'sweep', 'largearc', 'cx', 'cy', 'radius', 'clr')
+            {
+                if( exists( ${$cmd}{$c} ) )
+                {
+                    $dbgs .= "$c: ".$self->mnum(${$cmd}{$c}, 3)."; ";
+                }
+            }
+            $self->{k}->print_debug( 7, "$lbl: $dbgs" );
+        }
+    }
+}
+
+# massage_numeric
+sub mnum()
+{
+    my $self = shift;
+    my $arg  = shift;
+    my $precision = shift;
+    if( $arg =~ /^[-+.0-9e]+$/ )
+    {
+        if( abs($arg) != int(abs($arg)) )              # integers are clean as they are
+        {
+            my $fmt = '%f';
+            if( defined($precision) )
+            {
+                $fmt = '%.0'.$precision.'f';
+            }
+            $arg = sprintf( $fmt, $arg );
+        }
+        $arg =~ s/^-([0.]+)$/$1/;                      # we don't like negative zero
+    }
+    return $arg;
+}
+
 
 
 # /* vim: set ai et tabstop=4  shiftwidth=4: */
