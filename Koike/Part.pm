@@ -46,10 +46,24 @@ sub new {
     $self->{k} = $args{koikeobj};
     my( $kx, $ky ) = $self->{k}->get_current_position();
 
-    $self->{startx} = exists($args{startx}) ? $args{startx} : $kx;  # our starting point.
-    $self->{starty} = exists($args{starty}) ? $args{starty} : $ky;
+#    $self->{startx} = exists($args{startx}) ? $args{startx} : $kx;  # our starting point.
+#    $self->{starty} = exists($args{starty}) ? $args{starty} : $ky;
+    if( exists($args{startx}) )
+    {
+        $self->{startx} = $args{startx};
+        $self->{starty} = $args{starty};
+        $self->{k}->print_debug( 2, sprintf('Koike::Part::new() got startx,starty from args -- %.03f,%.03f', $self->{startx}, $self->{starty} )  );
+    }
+    else
+    {
+        $self->{startx} = $kx;  # our starting point.
+        $self->{starty} = $ky;
+        $self->{k}->print_debug( 2, sprintf('Koike::Part::new() got startx,starty from k -- %.03f,%.03f', $self->{startx}, $self->{starty} )  );
+    }
+
     $self->{x} = $self->{startx};                                   # is also current position
     $self->{y} = $self->{starty};
+    $self->{k}->update_position( $self->{x}, $self->{y} );
 
     # bounding box.  XXX this doesn't correctly handle arcs,
     # whose extent will often pass beyond end points.
@@ -77,6 +91,7 @@ sub copy()
     $c->set_otherargs( 
         startx          => $self->{startx},
         starty          => $self->{starty},
+
         clist           => $self->{clist},
 
         clist_position  => $self->{clist_position},
@@ -102,6 +117,9 @@ sub copy()
 sub reverse_path()
 {
     my $self = shift;
+
+    $self->{k}->print_debug( 2, 'reverse_path() running' );
+
 
     my ( $new_startx, $new_starty ) = $self->end_coords();
     my ( $new_curx  , $new_cury   ) = $self->start_coords();
@@ -199,7 +217,7 @@ sub reverse_path()
     }
 
     ( $self->{startx}, $self->{starty} ) = ( $new_startx, $new_starty );
-    ( $self->{x}, $self->{y} ) = ( $new_curx, $new_cury );
+    $self->update_position( $new_curx, $new_cury, 0 );
 
     $self->{clist} = $new_clist;
 }
@@ -377,7 +395,17 @@ sub next_command()
 sub start_coords()
 {
     my $self = shift;
-    return ( $self->{startx}, $self->{starty} )
+    my ( $x, $y ) = ( $self->{startx}, $self->{starty} );
+
+    my $h = $self->first_command();
+    if( defined($h) && exists( $h->{sox} ) && ($h->{sox} != $x || $h->{soy} != $y) )
+    {
+        $self->{k}->print_debug( 2, sprintf('start_coords fouind that startx,starty:(%.03f,%.03f) != first_command(%s):sox,soy:(%.03f,%.03f). returning sox,soy;',
+                    $x, $y, $h->{cmd}, $h->{sox}, $h->{soy}) );
+        ( $x, $y ) = ($h->{sox}, $h->{soy});
+    }
+
+    return ( $x, $y );
 }
 
 sub end_coords()
@@ -400,7 +428,6 @@ sub end_coords()
         }
 
         $self->{k}->print_debug( 2, sprintf('end_coords pulled %s: %.02f,%.02f via cmd:%s', $debug_coords_source, $x, $y, $h->{cmd} ) );
-
     }
 
     return ( $x, $y );
@@ -443,10 +470,11 @@ sub translate()
     my $xshift = shift;
     my $yshift = shift;
 
+    my $id = 1000000*rand();
 
     if( ${$self->{clist}}[0]->{sox} != $self->{startx} ||  ${$self->{clist}}[0]->{soy} != $self->{starty} )
     {
-        $self->{k}->print_debug( 1, sprintf('start-point mismatch at start of translate: sox,soy:(%.03f,%.03f) != startx,starty:(%.03f,%.03f)',
+        $self->{k}->print_debug( 1, sprintf('%d: start-point mismatch at start of translate: sox,soy:(%.03f,%.03f) != startx,starty:(%.03f,%.03f)', $id, 
                                             ${$self->{clist}}[0]->{sox}, ${$self->{clist}}[0]->{soy}, $self->{startx}, $self->{starty} ) );
     }
 
@@ -473,6 +501,8 @@ sub translate()
     $self->{x} += $xshift;
     $self->{y} += $yshift;
 
+    $self->{k}->update_position( $self->{x}, $self->{y} );
+
     $self->{startx} += $xshift;
     $self->{starty} += $yshift;
 
@@ -480,10 +510,9 @@ sub translate()
 
     if( ${$self->{clist}}[0]->{sox} != $self->{startx} ||  ${$self->{clist}}[0]->{soy} != $self->{starty} )
     {
-        $self->{k}->print_debug( 1, sprintf('start-point mismatch at end of translate: sox,soy:(%.03f,%.03f) != startx,starty:(%.03f,%.03f)',
+        $self->{k}->print_debug( 1, sprintf('%d: start-point mismatch at end of translate: sox,soy:(%.03f,%.03f) != startx,starty:(%.03f,%.03f)', $id,
                                             ${$self->{clist}}[0]->{sox}, ${$self->{clist}}[0]->{soy}, $self->{startx}, $self->{starty} ) );
     }
-
 }
 
 sub scale()
@@ -499,9 +528,11 @@ sub matrix_mult()
     my $self  = shift;
     my $mat   = shift;
     my $vec = shift;
+    my $dbg = shift || "";
 
 
     $self->{k}->print_debug( 10, 
+          $dbg.
           '$$mat[0][0] == '.(exists($$mat[0][0]) && defined($$mat[0][0])?"exists:".$$mat[0][0]:"nonesuch").
           '$$vec[0] == '.(exists($$vec[0]) && defined($$vec[0])?"exists:".$$vec[0]:"nonesuch").
           '$$mat[0][1] == '.(exists($$mat[0][1]) && defined($$mat[0][1])?"exists:".$$mat[0][1]:"nonesuch").
@@ -512,7 +543,12 @@ sub matrix_mult()
           '$$vec[1] == '.(exists($$vec[1]) && defined($$vec[1])?"exists:".$$vec[1]:"nonesuch")
   );
 
-    return ( $$mat[0][0] * $$vec[0] + $$mat[0][1] * $$vec[1], $$mat[1][0] * $$vec[0] + $$mat[1][1] * $$vec[1] );
+    return ( 
+            $$mat[0][0] * $$vec[0] + 
+            $$mat[0][1] * $$vec[1], 
+
+            $$mat[1][0] * $$vec[0] + 
+            $$mat[1][1] * $$vec[1] );
 }
 
 sub linear_transform()
@@ -524,27 +560,133 @@ sub linear_transform()
     for( my $i = 0; $i <=  $#{$self->{clist}}; $i++ )
     {
         ( ${$self->{clist}}[$i]->{sox}, ${$self->{clist}}[$i]->{soy} ) = 
-            $self->matrix_mult( $mat, [${$self->{clist}}[$i]->{sox}, ${$self->{clist}}[$i]->{soy}] );
+            $self->matrix_mult( $mat, [${$self->{clist}}[$i]->{sox}, ${$self->{clist}}[$i]->{soy}], "a - " );
 
         if( exists( ${$self->{clist}}[$i]->{toy} ) )
         {
             ( ${$self->{clist}}[$i]->{tox}, ${$self->{clist}}[$i]->{toy} ) = 
-                $self->matrix_mult( $mat, [${$self->{clist}}[$i]->{tox}, ${$self->{clist}}[$i]->{toy}] );
+                $self->matrix_mult( $mat, [${$self->{clist}}[$i]->{tox}, ${$self->{clist}}[$i]->{toy}], "b - " );
         }
 
         if( ${$self->{clist}}[$i]->{cmd} eq 'a' )
         {
             (${$self->{clist}}[$i]->{cx}, ${$self->{clist}}[$i]->{cy} ) =
-                $self->matrix_mult( $mat, [ ${$self->{clist}}[$i]->{cx}, ${$self->{clist}}[$i]->{cy}] );
+                $self->matrix_mult( $mat, [ ${$self->{clist}}[$i]->{cx}, ${$self->{clist}}[$i]->{cy}], "c - "  );
         }
     }
 
     # apply transform also to the start and current positions
-    ($self->{startx}, $self->{starty}) = $self->matrix_mult( $mat, [$self->{startx}, $self->{starty}] );
-    ($self->{x},      $self->{y})      = $self->matrix_mult( $mat, [$self->{x},      $self->{y}] );
+    ($self->{startx}, $self->{starty}) = $self->matrix_mult( $mat, [$self->{startx}, $self->{starty}], "d - " );
+    $self->update_position( $self->matrix_mult( $mat, [$self->{x},      $self->{y}], "f - " ), 0 ); # ($self->{x},      $self->{y})      = 
 
     $self->auto_remake_bounding_box();
 }
+
+sub nonlinear_transform_helper()
+{
+    my $self = shift;
+    my $mat  = shift;
+    my $vec  = shift;
+    my $x    = shift;
+    my $y    = shift;
+    my $dbgl = shift;
+
+    my $xx = $$mat[0][0];
+    my $xy = $$mat[0][1];
+    my $yx = $$mat[1][0];
+    my $yy = $$mat[1][1];
+    my $vx = $$vec[0];
+    my $vy = $$vec[1];
+
+    my $m = [ [&$xx( $x, $y ), &$xy( $x, $y )], [&$yx( $x, $y ), &$yy( $x, $y )]];
+    my ($newx, $newy) = $self->matrix_mult( $m, [ $x, $y ], $dbgl );
+    my ($xoffset, $yoffset) = ( &$vx( $x, $y ), &$vy( $x, $y ) );
+    return ($newx + $xoffset, $newy + $yoffset);
+}
+
+sub make_numeric_coderef($)
+{
+    my $ref = shift;
+
+    if( ref $ref ne "CODE" )
+    {
+        if( ref $ref eq "" )
+        {
+            if( $ref  =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ )
+            {
+                return sub { return $ref; };
+            }
+            else
+            {
+                return sub { return 0; };
+            }
+        }
+        elsif( ref $ref eq "SCALAR" )
+        {
+            my $v = $$ref;
+            if( $v =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ )
+            {
+                return sub { return $v; };
+            }
+            else
+            {
+                return sub { return 0; };
+            }
+        }
+        else
+        {
+            return sub { return 0; };
+        }
+    }
+
+    return $ref;
+}
+
+
+
+sub nonlinear_transform()
+{
+    my $self  = shift;
+    my $mat   = shift;
+    my $vec   = shift;
+
+    if( ref $mat ne 'ARRAY' ) { $mat = [[sub{1;},sub{0;}],[sub{0;},sub{1;}]]; } # default transform matrix is identity
+    $$mat[0][0] = &make_numeric_coderef( $$mat[0][0] );
+    $$mat[1][0] = &make_numeric_coderef( $$mat[1][0] );
+    $$mat[0][1] = &make_numeric_coderef( $$mat[0][1] );
+    $$mat[1][1] = &make_numeric_coderef( $$mat[1][1] );
+
+    if( ref $vec ne 'ARRAY' ) { $vec = [sub{0;}, sub{0;}]; }                    # default offset vector is zero
+    $$vec[0] = &make_numeric_coderef( $$vec[0] );
+    $$vec[1] = &make_numeric_coderef( $$vec[1] );
+
+    my ($x,$y,$m);
+    for( my $i = 0; $i <=  $#{$self->{clist}}; $i++ )
+    {
+        ( ${$self->{clist}}[$i]->{sox}, ${$self->{clist}}[$i]->{soy} ) =
+            $self->nonlinear_transform_helper( $mat, $vec, ${$self->{clist}}[$i]->{sox}, ${$self->{clist}}[$i]->{soy}, "a - " );
+
+        if( exists( ${$self->{clist}}[$i]->{toy} ) )
+        {
+            ( ${$self->{clist}}[$i]->{tox}, ${$self->{clist}}[$i]->{toy} ) =
+                $self->nonlinear_transform_helper( $mat, $vec, ${$self->{clist}}[$i]->{tox}, ${$self->{clist}}[$i]->{toy}, "b - " );
+        }
+
+        #  XXX this is inadequate.
+        if( ${$self->{clist}}[$i]->{cmd} eq 'a' )
+        {
+            ( ${$self->{clist}}[$i]->{cx}, ${$self->{clist}}[$i]->{cy} ) =
+                $self->nonlinear_transform_helper( $mat, $vec, ${$self->{clist}}[$i]->{cx}, ${$self->{clist}}[$i]->{cy}, "c - " );
+        }
+    }
+
+    # apply transform also to the start and current positions
+    ($self->{startx}, $self->{starty}) = $self->nonlinear_transform_helper( $mat, $vec, $self->{startx}, $self->{starty}, "d - " );
+    $self->update_position( $self->nonlinear_transform_helper( $mat, $vec, $self->{x}, $self->{y}, "f - " ), 0 );
+
+    $self->auto_remake_bounding_box();
+}
+
 
 
 sub rotate()
@@ -634,7 +776,8 @@ sub update_position()
     my $self = shift;
     my $newx = shift;
     my $newy = shift;
-    my $update_startxy = shift || 1;
+    my $update_startxy = shift;
+    $update_startxy = 1 if ( ! defined( $update_startxy ) );
 
     if( defined($self->{x}) && $self->{x} == $newx && $self->{y} == $newy )
     {
@@ -653,6 +796,8 @@ sub update_position()
 
     $self->{x} = $newx;
     $self->{y} = $newy;
+
+    $self->{k}->update_position( $self->{x}, $self->{y} );
 
     return 1; # return true
 }
@@ -814,8 +959,14 @@ sub arcto()
     }
 
     # if the center point is not defined then we need a radius, sweep, *and* largearc flag to find the center.
-    elsif( defined($rdus) && defined($sweep) && defined($largearc) )
+    # However, g-code interpreters seem to allow for a radius and sweep defined without also specifying which
+    # arc to use. I will allow this, and assume, as interpreters seem to as a convention, to use largearc=0
+    # when it's not specified.
+#    elsif( defined($rdus) && defined($sweep) && defined($largearc) )
+    elsif( defined($rdus) && defined($sweep) )
     {
+        if( ! defined($largearc) ) { $largearc = 0; }
+
         # make a vector named U
         my $ux = $tox - $sox;
         my $uy = $toy - $soy;

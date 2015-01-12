@@ -12,6 +12,7 @@ use warnings;
 use IO::File;
 use IO::Handle;
 use Clone 'clone';
+use Math::Trig;
 
 BEGIN
 {
@@ -41,8 +42,8 @@ sub new {
 
     $self->{DEBUG} = exists($args{debug}) ? $args{debug}    : 0;  # 0 means: no debug messages.
     $self->{p} = exists($args{protocol})  ? $args{protocol} : 'gcode'; # protocol: svg or gcode
-    $self->{x} = undef;
-    $self->{y} = undef;
+    $self->{x} = 0;
+    $self->{y} = 0;
 
     # bounding box.  XXX this doesn't correctly handle arcs,
     # whose extent will often pass beyond end points.
@@ -55,6 +56,7 @@ sub new {
 
     # colors for svg mode
     my $dfltclr = 'rgb(255,0,0)';
+    $self->{color_format} = exists($args{color_format}) ? $args{color_format}  : undef;
     $self->{moveto_color} = exists($args{moveto_color}) ? $args{moveto_color}  : 'none';
     $self->{cut_color}    = exists($args{cut_color})    ? $args{cut_color}     : $dfltclr;
     $self->{line_color}   = exists($args{line_color})   ? $args{line_color}    : $dfltclr;
@@ -80,7 +82,11 @@ sub new {
     $self->{LASTGCMD}     = ''; # the present command (G00,G01,G02,...) is a machines state variable
 
     # svg options
-    $self->{inc_html}     =  exists($args{includehtml})    ? $args{includehtml}     : 1;
+    $self->{inc_html}     =  exists($args{includehtml})    ? $args{includehtml}     : 0;
+
+    # collapse adjacent moveto commands into a single shortcut command
+    $self->{short_moveto} =  exists($args{short_movto})    ? $args{short_movto}     : 1;
+    $self->{mtsc}         =  undef;  # state variable for shortcut handling
 
     # create a handle to the output file (default: stdout) so that a replacement can be used transparently
     $self->{fh} = IO::Handle->new();
@@ -89,6 +95,8 @@ sub new {
     bless($self,$class); # bless me! and all who are like me. bless us everyone.
     return $self;
 }
+
+sub new_part() { my $self = shift; my $g = Koike::Part::new( 'Koike::Part', koikeobj=>$self );  return $g; }
 
 sub p()
 {
@@ -111,6 +119,12 @@ sub process_cmdlineargs()
     if( (my @l = grep(/--mult=-?[0-9.]+/,  @argv)) ){ $l[0] =~ /--mult=(-?[0-9.]+)/;  $self->{mult}  = $1; }
     if( (my @l = grep(/--d(ebug)?=[0-9]+/, @argv)) ){ $l[0] =~ /--d(ebug)?=([0-9]+)/; $self->{DEBUG} = $2; }
 
+    if( (my @l = grep(/--color-format="?(rgb|html)"?/i, @argv)) )
+    {
+        $l[0] =~ /--color-format="?(rgb|html)"?/i;
+        $self->{color_format} = $1;
+    }
+
     if( (my @l = grep(/--moveto-color="?(rgb\(\d+,\d+,\d+\)|#[0-9A-F]{6}|none)"?/i, @argv)) )
     {
         $l[0] =~ /--moveto-color="?(rgb\(\d+,\d+,\d+\)|#[0-9A-F]{6}|none)"?/i;
@@ -123,9 +137,9 @@ sub process_cmdlineargs()
         }
         $self->set_colors( moveto_color=>$clr );
     }
-    if( (my @l = grep(/--cut-color="?(rgb\(\d+,\d+,\d+\)|#[0-9A-F]{6}|none)"?/i, @argv)) )
+    if( (my @l = grep(/--cut-color="?(rgb\(\d+,\d+,\d+\)|#[0-9A-F]{6}|none|directional)"?/i, @argv)) )
     {
-        $l[0] =~ /--cut-color="?(rgb\(\d+,\d+,\d+\)|#[0-9A-F]{6}|none)"?/i;
+        $l[0] =~ /--cut-color="?(rgb\(\d+,\d+,\d+\)|#[0-9A-F]{6}|none|directional)"?/i;
         my $clr = $1;
         $clr =~ tr/[A-Z]/[a-z]/; # switch to lower case.  we don't want "NoNe"
         if( $clr =~ /^#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})/i )
@@ -251,7 +265,7 @@ sub update_position()
     my $self = shift;
     my $newx = shift;
     my $newy = shift;
-
+    
     if( defined($self->{x}) && $self->{x} == $newx && $self->{y} == $newy )
     {
         # did the position change?
@@ -278,11 +292,10 @@ sub get_current_position()
 sub set_rectagular_material_bounds()
 {
     my $self = shift;
-    my $x1 = shift || $self->{xmin};
-    my $y1 = shift || $self->{ymin};
-    my $x2 = shift || $self->{xmax};
-    my $y2 = shift || $self->{ymax};
-
+    my $x1 = shift;     $x1 = $self->{xmin} if ! defined($x1);
+    my $y1 = shift;     $y1 = $self->{ymin} if ! defined($y1);
+    my $x2 = shift;     $x2 = $self->{xmax} if ! defined($x2);
+    my $y2 = shift;     $y2 = $self->{ymax} if ! defined($y2);
 
     $self->update_bounds( $x1, $y1 );
     $self->update_bounds( $x2, $y2 );
@@ -290,7 +303,7 @@ sub set_rectagular_material_bounds()
     # this should always be the first command
     unshift( @{$self->{clist}},
         {
-            cmd=>'rb',   clr=>$self->{matrl_color},
+            cmd=>'rb',clr=>$self->{matrl_color},
             sox=>$x1, soy=>$y1,
             tox=>$x2, toy=>$y2
         });
@@ -329,10 +342,55 @@ sub add_part()
     }
 }
 
+sub svg_encode_color()
+{
+    my $self = shift;
+    my $clrstring = shift;  # at this point clrstring should have the standard rgb format. example: 'rgb(0,0,255)';
+    if( defined($self->{color_format}) && $self->{color_format} eq 'html' )
+    {
+        if( $clrstring =~ m/rgb\((\d+),(\d+),(\d+)\)/ )
+        {
+            my ( $r, $g, $b ) = ( $1, $2, $3 );
+            $clrstring = sprintf('#%02x%02x%02x', $r, $g, $b );
+        }
+    }
+    return $clrstring;
+}
+
+
 sub svg_lineto()
 {
     my $self = shift;
     my $h = shift;
+
+    my $clr = $self->svg_encode_color( $h->{clr} );
+
+    return if $clr eq 'none';
+
+    if( $clr eq 'directional' )
+    {
+        my ($x, $y, $r, $g, $b, $angle);
+        $x = $h->{tox} - $h->{sox};
+        $y = $h->{toy} - $h->{soy};
+
+        $angle = atan2( $y, $x );
+        if( $angle < 0 ) {  $angle = 2*pi + $angle; }
+
+        $r = 255 * cos($angle);            $r = ($r > 0) ? $r : 0;
+        $g = 255 * cos(2*pi/3 - $angle);   $g = ($g > 0) ? $g : 0;
+        $b = 255 * cos(4*pi/3 - $angle);   $b = ($b > 0) ? $b : 0;
+
+        $clr = sprintf('rgb(%d,%d,%d)', $r, $g, $b);
+
+        $self->print_debug( 1, sprintf( 'doing directional color ... %s with angle:%.02f (%.02f,%.02f,%.02f) from (%.02f,%.02f)', $clr, $angle, 
+                    
+            $angle,
+            2*pi/3 - $angle,
+            4*pi/3 - $angle,
+
+                    
+                    $x, $y ) );
+    }
 
     $self->p(
         sprintf( '<line x1="%.03f" y1="%.03f" x2="%.03f" y2="%.03f" style="stroke:%s;stroke-width:1" />',
@@ -340,7 +398,7 @@ sub svg_lineto()
             ($h->{soy} + $self->{yoffset}) * $self->{mult}, 
             ($h->{tox} + $self->{xoffset}) * $self->{mult},
             ($h->{toy} + $self->{yoffset}) * $self->{mult},
-            $h->{clr})
+            $clr)
     );
 }
 
@@ -348,10 +406,6 @@ sub svg_arcto()
 {
     my $self = shift;
     my $h = shift;
-    my $r = $h->{radius};
-    my $l = $h->{largearc};
-    my $s = $h->{sweep};
-    my $c = $h->{clr};
 
     $self->p(
 
@@ -369,7 +423,7 @@ sub svg_arcto()
             ($h->{tox} + $self->{xoffset}) * $self->{mult},
             ($h->{toy} + $self->{yoffset}) * $self->{mult},
 
-            $h->{clr} )
+            $self->svg_encode_color( $h->{clr} ) )
     );
 }
 
@@ -388,13 +442,16 @@ sub svg_endpoint()
     my $self = shift;
     my $h = shift;
 
+    if( $h->{clr} ne 'none' )
+    {
     $self->p(
         sprintf( '<circle cx="%.03f" cy="%.03f" r="%.03f" fill="%s" stroke="none" />', 
             (($h->{sox} + $self->{xoffset}) * $self->{mult}),
             (($h->{soy} + $self->{yoffset}) * $self->{mult}),
             ( $h->{r}              * 5 * log( ($self->{mult} < 3 ? 3 : $self->{mult}) )),  # scale the size of the dot at a non-linear rate. 5*log(r) chosen after experimentation
-            $h->{clr} )
+            $self->svg_encode_color( $h->{clr} ) )
     );
+    }
 
 }
 
@@ -406,13 +463,15 @@ sub svg_rectangular_background()
     my $wd = abs($h->{sox} - $h->{tox});
     my $ht = abs($h->{soy} - $h->{toy});
 
+    return if $h->{clr} eq 'none';
+
     $self->p(
         sprintf( '<rect x="%.03f" y="%.03f" width="%.03f" height="%.03f" fill="%s" stroke="none" />', 
             (($h->{sox} + $self->{xoffset}) * $self->{mult}),
             (($h->{soy} + $self->{yoffset}) * $self->{mult}),
             abs($wd * $self->{mult}),
             abs($ht * $self->{mult}),
-            $h->{clr} )
+            $self->svg_encode_color( $h->{clr} ) )
     );
 }
 
@@ -568,6 +627,41 @@ sub set_scale_multiplier() { my $self = shift; $self->{mult}    = shift; }
 sub get_scale_multiplier() { my $self = shift; return $self->{mult}; }
 
 
+sub do_cmd()
+{
+    my $self  = shift;
+    my $h = shift;
+
+    my %cmds = ();
+    if( $self->{p} eq 'svg' )
+    {
+        %cmds = (l=>\&svg_lineto,   a=>\&svg_arcto,   m=>\&svg_moveto,   start=>\&print_svg_html_start,    end=>\&print_svg_html_end,
+                 os=>\&svg_endpoint, oe=>\&svg_endpoint, rb=>\&svg_rectangular_background );
+    }
+    else
+    {
+        %cmds = (l=>\&gcode_lineto, a=>\&gcode_arcto, m=>\&gcode_moveto, start=>\&print_koike_gcode_start, end=>\&end_koike_gcode,
+                                                         rb=>\&gcode_precut_perimeter );
+    }
+
+    if   ( ref($h) eq 'HASH' && exists($cmds{$h->{cmd}}) )
+    {
+        if( ! $self->delay_moveto( $h ) )
+        {
+            if( $self->{short_moveto} && defined($self->{mtsc}) )
+            {
+                &{ $cmds{$self->{mtsc}->{cmd}} }( $self, $self->{mtsc} );
+                $self->{mtsc} = undef;
+            }
+            &{ $cmds{$h->{cmd}} }( $self, $h );
+        }
+    }
+    elsif( ref($h) ne 'HASH' && exists($cmds{$h})        )
+    {
+        &{ $cmds{$h       } }( $self );
+    }
+}
+
 sub printall()
 {
     my $self  = shift;
@@ -579,27 +673,51 @@ sub printall()
         $self->{fh}->open( $fname, '>' ) || die "failed to open $fname for writing\n";
     }
 
-    my %cmds = ();
-    if( $self->{p} eq 'svg' )
-    {
-        %cmds = (l=>\&svg_lineto,   a=>\&svg_arcto,   m=>\&svg_moveto,   start=>\&print_svg_html_start,    end=>\&print_svg_html_end,
-                 os=>\&svg_endpoint, oe=>\&svg_endpoint, rb=>\&svg_rectangular_background );
-    }
-    else
-    {
-        %cmds = (l=>\&gcode_lineto, a=>\&gcode_arcto, m=>\&gcode_moveto, start=>\&print_koike_gcode_start, end=>\&end_koike_gcode );
-    }
+##     my %cmds = ();
+##     if( $self->{p} eq 'svg' )
+##     {
+##         %cmds = (l=>\&svg_lineto,   a=>\&svg_arcto,   m=>\&svg_moveto,   start=>\&print_svg_html_start,    end=>\&print_svg_html_end,
+##                  os=>\&svg_endpoint, oe=>\&svg_endpoint,
+##                  rb=>\&svg_rectangular_background );
+##     }
+##     else
+##     {
+##         %cmds = (l=>\&gcode_lineto, a=>\&gcode_arcto, m=>\&gcode_moveto, start=>\&print_koike_gcode_start, end=>\&end_koike_gcode,
+##                 rb=>\&gcode_precut_perimeter );
+##     }
 
-    &{$cmds{start}}( $self );
-
-    # my $lref = $self->{clist}
-    foreach my $i ( @{$self->{clist}} )
-    {
-        if( exists($cmds{$i->{cmd}}) ) { &{ $cmds{$i->{cmd}} }( $self, $i ); }
-    }
-
-    &{$cmds{end}}( $self );
+    $self->do_cmd( 'start' ); # &{$cmds{start}}( $self );
+    foreach my $i ( @{$self->{clist}} ) { $self->do_cmd( $i ); }
+    $self->do_cmd( 'end' ); # &{$cmds{end}}( $self );
 }
+
+
+
+# returns true ONLY IF $self->{short_moveto} is true,
+# and the command it is given to execute is a moveto
+sub delay_moveto()
+{
+    my $self = shift;
+    my $h = shift;
+    my $delay = 0;
+
+    if( $self->{short_moveto} && defined($h) && $h->{cmd} eq 'm' )
+    {
+        $delay = 1;
+        if( defined($self->{mtsc})  )
+        {
+            $self->{mtsc}->{tox} = $h->{tox};
+            $self->{mtsc}->{toy} = $h->{toy};
+        }
+        else
+        {
+            $self->{mtsc} = clone $h;
+        }
+    }
+
+    return $delay;
+}
+
 
 sub copy()
 {
@@ -607,6 +725,7 @@ sub copy()
     my $newk = new Koike(
     debug => $self->{DEBUG},
     protocol => $self->{p},
+    color_format => $self->{color_format},
     moveto_color => $self->{moveto_color},
     cut_color => $self->{cut_color},
     line_color => $self->{line_color},
@@ -708,7 +827,11 @@ sub print_koike_gcode_start()
         $i++;
     } while ( $h->{cmd} =~ /^(rb|start|end)$/ );
 
-    $self->gcode_moveto( { sox=>0,  soy=>0, tox=>$h->{sox}, toy=>$h->{soy} } );
+    # if the starting place isn't zero then koike needs to move there
+    if( ! ( $h->{sox} == 0 && $h->{soy} == 0 ) )
+    {
+        $self->gcode_moveto( { sox=>0,  soy=>0, tox=>$h->{sox}, toy=>$h->{soy} } );
+    }
 }
 
 sub end_koike_gcode()
@@ -736,14 +859,28 @@ sub print_svg_html_start()
     if( $h != int($h) ) { $h = sprintf("%d", abs($h)+.5 ); }
     if( $w != int($w) ) { $w = sprintf("%d", abs($w)+.5 ); }
 
-    if( $self->{inc_html} ) { $self->p( '<!DOCTYPE html><html><body>' ); }
-    $self->p( '<svg height="'.abs($h).'" width="'.abs($w).'">' );
+    if( $self->{inc_html} ) { $self->p( '<!DOCTYPE html><html><body>' ); } else { $self->p( '<?xml version="1.0" encoding="UTF-8" standalone="no"?>' ); $self->p(''); }
+    $self->p( '<svg xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" height="'.abs($h).'" width="'.abs($w).'">' );
+}
+
+sub gcode_precut_perimeter()
+{
+    my $self = shift;
+    my $h = shift;
+
+    $self->gcode_moveto( { sox=>0,         soy=>0,         tox=>$h->{sox}, toy=>$h->{soy} } );
+    $self->gcode_moveto( { sox=>$h->{sox}, soy=>$h->{soy}, tox=>$h->{tox}, toy=>$h->{soy} } );
+    $self->gcode_moveto( { sox=>$h->{tox}, soy=>$h->{soy}, tox=>$h->{tox}, toy=>$h->{toy} } );
+    $self->gcode_moveto( { sox=>$h->{tox}, soy=>$h->{toy}, tox=>$h->{sox}, toy=>$h->{toy} } );
+    $self->gcode_moveto( { sox=>$h->{sox}, soy=>$h->{toy}, tox=>$h->{sox}, toy=>$h->{soy} } );
+    if( $h->{sox} != 0 || $h->{soy} != 0 ) { $self->gcode_moveto( { sox=>$h->{sox}, soy=>$h->{soy}, tox=>0,         toy=>0 }         ); }
 }
  
 sub print_svg_html_end()
 {
     my $self = shift;
-    $self->p( "Sorry, your browser does not support inline SVG.</svg>" );
+    if( $self->{inc_html} ) { $self->p( "Sorry, your browser does not support inline SVG." ); }
+    $self->p( "</svg>" );
     if( $self->{inc_html} ) { $self->p( '</body></html>' ); }
 }
 
