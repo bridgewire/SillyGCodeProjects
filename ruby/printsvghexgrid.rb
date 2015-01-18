@@ -7,10 +7,35 @@
 require './BWCNC'
 
 
+# command-line argument processing located at the top as a way of documenting this program
+def process_commandline_args
+
+  params = { :sidelength => 1, :mult => 10, :stroke_width => 1,
+             :cols => 3, :rows => 3,
+             :nested => 1, :nested_spacing => 0.2,
+             :suppress_grid => false }
+
+  ARGV.each { |a|
+    if    v = a.match(/^--side-length=([0-9.]+)$/)       then params[:sidelength]     = v[1].to_f
+    elsif v = a.match(/^--cols=([0-9]+)$/)               then params[:cols]           = v[1].to_i
+    elsif v = a.match(/^--rows=([0-9]+)$/)               then params[:rows]           = v[1].to_i
+    elsif v = a.match(/^--nested=([0-9]+)$/)             then params[:nested]         = v[1].to_i
+    elsif v = a.match(/^--nested-spacing=(0?\.[0-9]+)$/) then params[:nested_spacing] = v[1].to_f
+    elsif v = a.match(/^--suppress-grid(=([01]))?$/)     then params[:suppress_grid]  = (v[1].nil? || v[2] == "1")
+    elsif v = a.match(/^--mult=([.0-9e]+)$/)             then params[:mult]           = v[1].to_f
+    elsif v = a.match(/^--stroke-width=([.0-9]+)$/)      then params[:stroke_width]   = v[1].to_f
+    else STDERR.puts "unknown argument #{a}"
+    end
+  }
+
+  params
+end
+
+
 # hexagon orientation: symmetric around vertical axis through two vertecees
 #
 # (x_start, y_start): are coordinates of upper-lefthand vertex
-# outer_sidelen:      standard hex-grid side length (length of grid hexagon side
+# outer_sidelen:      standard hex-grid side length (length of grid-hexagon side, not nested side)
 # spacing_ratio:      distance from vertex to center is 100% == 1. spacing_ratio
 #                     gives the part (as ratio) of that that distance to the first
 #                     nested hex
@@ -141,78 +166,80 @@ def fill_partctx_with_hexgrid( k, parms )
 
 end
 
-params = { :sidelength => 50, :cols => 3, :rows => 3, :nested => 1, :nested_spacing => 0.2, :suppress_grid => false, :mult => 1, :stroke_width => 1 }
 
+def main
 
-ARGV.each { |a|
-  if    v = a.match(/^--side-length=([0-9.]+)$/)       then params[:sidelength]     = v[1].to_f
-  elsif v = a.match(/^--cols=([0-9]+)$/)               then params[:cols]           = v[1].to_i
-  elsif v = a.match(/^--rows=([0-9]+)$/)               then params[:rows]           = v[1].to_i
-  elsif v = a.match(/^--nested=([0-9]+)$/)             then params[:nested]         = v[1].to_i
-  elsif v = a.match(/^--nested-spacing=(0?\.[0-9]+)$/) then params[:nested_spacing] = v[1].to_f
-  elsif v = a.match(/^--suppress-grid(=([01]))?$/)     then params[:suppress_grid]  = (v[1].nil? || v[2] == "1")
-  elsif v = a.match(/^--mult=([.0-9e]+)$/)             then params[:mult]           = v[1].to_f
-  elsif v = a.match(/^--stroke-width=([.0-9]+)$/)      then params[:stroke_width]   = v[1].to_f
-  end
-}
+  parms = process_commandline_args()
 
+  k = BWCNC::PartContext.new
 
+  # this makes the hex-grid, storing it in k.
+  fill_partctx_with_hexgrid( k, parms )
 
-k = BWCNC::PartContext.new
+  # align center of grid with coordinate 0,0 to make whatever transform we're
+  # executing probably-symetric with respect to the center of the grid.
+  min = k.boundingbox[:min]
+  max = k.boundingbox[:max]
+  k.translate( Vector[ -(max[0] - min[0])/2.0, -(max[1] - min[1])/2.0, 0 ] )
 
-
-fill_partctx_with_hexgrid( k, params )
-
-min = k.boundingbox[:min]
-max = k.boundingbox[:max]
-k.translate( Vector[ -(max[0] - min[0])/2.0, -(max[1] - min[1])/2.0, 0 ] )
-
-k.position_dependent_transform( 
-
-##   # spiral
-##   nil,
-## 
-##   lambda { |v|
-##   
-##     f=2*Math::PI/10.0;
-## 
-##     d=Math.sqrt(v[0]**2 + v[1]**2);
-## 
-##     d = (d == 0 ? 0.0000000001 : d );
-## 
-##     #x = Math.sin(d*f)
-## 
-##     Vector[ Math.cos(d*f)/1.2, Math.sin(d*f)/1.2, 0 ]
-## 
-##   } )
-
-
-  # cross-hatch waves
-  nil,
-
-  lambda { |v|
+  k.position_dependent_transform( 
   
-    #f=Math::PI/10.0;
-    f=Math::PI/20.0;
+  ##   # spiral
+  ##   nil,
+  ## 
+  ##   lambda { |v|
+  ##   
+  ##     w=2*Math::PI/10.0;
+  ## 
+  ##     d=Math.sqrt(v[0]**2 + v[1]**2);
+  ## 
+  ##     d = (d == 0 ? 0.0000000001 : d );
+  ## 
+  ##     #x = Math.sin(d*w)
+  ## 
+  ##     Vector[ Math.cos(d*w)/1.2, Math.sin(d*w)/1.2, 0 ]
+  ## 
+  ##   } )
+  
+  
+    ##########################################################
+    # cross-hatch waves
+    ##########################################################
+    nil, # no multiplication of coords. translations only.
+  
+    # translation function returns: Vector[ sin(w*y), sin(w*x), 0 ]
+    # where 'w' is a fixed constant. the x coordinate of a point shifts
+    # according to the original value of the y coordinate and vice versa.
+    lambda { |v|
+    
+      # 2*Math::PI * something makes it easy to relate side-lengths
+      # into the number of oscillations.  a side-length of one makes
+      # make it simpler still
+      #
+      #w=2*Math::PI/20.0; # one twentieth of an oscillation per unit. 
+      w=2*Math::PI/40.0; # one fortieth of an oscillation per unit.
 
-    Vector[ 6*Math.sin(f*v[1]), 6*Math.sin(f*v[0]), 0 ]
-
-  } )
-
-
+      # what will this do?
+      Vector[ Math.sin(w*v[1]), Math.sin(w*v[0]), 0 ]
+    } )
 
 
-k.scale( params[:mult] )
-k.remake_boundingbox
+  k.scale( parms[:mult] )
+  k.remake_boundingbox      # XXX why does this seem necessary? shouldn't be.
 
-min = k.boundingbox[:min]
-max = k.boundingbox[:max]
-k.translate( Vector[ -min[0], -min[1], 0 ] )
+  # shift the image again to make 0,0 the upper-left corner, making visible the svg.
+  min = k.boundingbox[:min]
+  max = k.boundingbox[:max]
+  k.translate( Vector[ -min[0], -min[1], 0 ] )
 
+  renderer = BWCNC::SVG.new
+  BWCNC::SVG::moveto_color = 'none'
+  #BWCNC::SVG::lineto_color = 'none'
+  BWCNC::SVG::stroke_width = parms[:stroke_width]
+  renderer.render_all( k )
 
+end #main
 
-renderer = BWCNC::SVG.new
-BWCNC::SVG::moveto_color = 'none'
-BWCNC::SVG::stroke_width = params[:stroke_width]
-renderer.render_all( k )
+main()
+
 

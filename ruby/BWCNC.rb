@@ -4,6 +4,12 @@
 ## Copyright (c) 2015
 ## license: The MIT License (MIT)
 
+# Notice that all instances of the Vector class in this file have 3 dimensions even though
+# this code, in general, only uses the first two dimensions.  This is done so in order to
+# make "cross_product," a somewhat important addition, more general and properly defined.
+# It's also done because this code may someday be used to make g-code for machines that
+# have a 3rd axis. In fact, I will probably add an (optional) functional 3rd axis quite soon.
+
 require 'matrix'
 
 module BWCNC
@@ -322,6 +328,9 @@ module BWCNC
     def update_position( newpos )
       if @curpos != newpos
         @curpos = newpos
+        if @commands.size == 0
+          @start = @curpos 
+        end
         update_bounds( @curpos )
       end
       self
@@ -443,6 +452,19 @@ module BWCNC
     end
 
     def add_part( prt )
+
+      if @partlist.size > 0
+        # if there's a position gap between the last part added and the new part being added then, at least
+        # for g-code, there must be a command that bridges the gap. assume 'moveto' is that implicit command
+        # and make it explicit by adding an additional one-command part before we follow through with the
+        # requested Part addition.  XXX  This perhaps should be optional, so maybe add an option.
+        unless @partlist[-1].curpos == prt.start
+          p = Part.new( @partlist[-1].curpos )     # make a new part starting at last of most recent pushed
+          p.moveto( CommandArgs.new( prt.start ) ) # containing a single moveto command ending at start of next
+          @partlist << p
+        end
+      end
+
       @partlist << prt
       update_bbox( prt )
     end
@@ -650,7 +672,7 @@ module BWCNC
       # characters whenever it makes sense. (or when possible.)
       if @last_command == gcode && ! @verbose
         gcode = ''
-      elsif @verbose                          # assert....  now either (@last_command != gcode || @verbose || (@last_command != gcode && @verbose))
+      elsif @verbose                   # assert(@last_command != gcode || @verbose || (@last_command != gcode && @verbose))
         @last_command = gcode
         gcode += ' '
       else
