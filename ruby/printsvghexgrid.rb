@@ -13,7 +13,8 @@ def process_commandline_args
   params = { :sidelength => 1, :mult => 10, :stroke_width => 1,
              :cols => 3, :rows => 3,
              :nested => 1, :nested_spacing => 0.2,
-             :suppress_grid => false }
+             :suppress_grid => false,
+             :moveto_color => '#0000ff', :lineto_color => '#ff0000' }
 
   ARGV.each { |a|
     if    v = a.match(/^--side-length=([0-9.]+)$/)       then params[:sidelength]     = v[1].to_f
@@ -24,7 +25,11 @@ def process_commandline_args
     elsif v = a.match(/^--suppress-grid(=([01]))?$/)     then params[:suppress_grid]  = (v[1].nil? || v[2] == "1")
     elsif v = a.match(/^--mult=([.0-9e]+)$/)             then params[:mult]           = v[1].to_f
     elsif v = a.match(/^--stroke-width=([.0-9]+)$/)      then params[:stroke_width]   = v[1].to_f
-    else STDERR.puts "unknown argument #{a}"
+    elsif v = a.match(/^--moveto-color=(none|#([0-9a-f]{3}|[0-9a-f]{6}))$/i)
+                                                         then params[:moveto_color]   = v[1]
+    elsif v = a.match(/^--lineto-color=(none|#([0-9a-f]{3}|[0-9a-f]{6}))$/i)
+                                                         then params[:lineto_color]   = v[1]
+    else abort "\nArborting!!! -- Error: unknown argument #{a}\n\n"
     end
   }
 
@@ -233,8 +238,8 @@ def main
   k.translate( Vector[ -min[0], -min[1], 0 ] )
 
   renderer = BWCNC::SVG.new
-  BWCNC::SVG::moveto_color = 'none'
-  #BWCNC::SVG::lineto_color = 'none'
+  BWCNC::SVG::moveto_color = parms[:moveto_color]
+  BWCNC::SVG::lineto_color = parms[:lineto_color]
   BWCNC::SVG::stroke_width = parms[:stroke_width]
   renderer.render_all( k )
 
