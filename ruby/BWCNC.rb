@@ -98,6 +98,9 @@ module BWCNC
     attr_reader :start, :end
     attr_accessor :color
 
+    def clone( args=CommandArgs.new )
+    end
+
     def initialize( args=CommandArgs.new )
       @start  = Vector[ args.from[0], args.from[1], 0 ]
       @end    = Vector[ args.to[0],   args.to[1],   0 ]
@@ -163,6 +166,16 @@ module BWCNC
     attr_accessor :sweep, :largearc, :radius
 
     TINY = 0.00000001
+
+    def clone()
+      Arc.new( CommandArgs.new( @end, {
+                  :point_from => @start,
+                  :point_center => @center,
+                  :clr => @color,
+                  :sweep => @sweep,
+                  :largearc => @largearc,
+                  :radius => @radius } ) )
+    end
 
     def initialize( args=CommandArgs.new )
       super( args )
@@ -280,6 +293,11 @@ module BWCNC
 
   #BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB class Line < Command
   class Line < Command
+
+    def clone()
+      Line.new( CommandArgs.new( @end, { :point_from => @start, :clr => @color } ) )
+    end
+
     def initialize( args=CommandArgs.new )
       super( args )
     end
@@ -292,6 +310,11 @@ module BWCNC
 
   #BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB class Move < Command
   class Move < Command
+
+    def clone()
+      Move.new( CommandArgs.new( @end, { :point_from => @start, :clr => @color } ) )
+    end
+
     def initialize( args=CommandArgs.new )
       super( args )
     end
@@ -305,6 +328,21 @@ module BWCNC
   #BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB class Part
   class Part
     attr_reader :commands, :boundingbox, :start, :curpos
+
+    def clone()
+      newpart = Part.new( @start )
+      newcmds = []
+      @commands.each { |c| newcmds << c.clone }
+      newbbox = { :min => @boundingbox[:min], :max => @boundingbox[:max] }
+      newpart.finishclone( @curpos, newcmds, newbbox )
+      newpart
+    end
+    def finishclone( curposition, commandarray, boundingbox )
+      @curpos = curposition
+      @commands = commandarray
+      @boundingbox = boundingbox
+    end
+    protected :finishclone  # finishclone can be called only by other instances of Part
 
     def initialize( startpoint=nil )
       if startpoint.nil? || (startpoint.class == Vector && startpoint.size < 2)
@@ -342,7 +380,7 @@ module BWCNC
       @boundingbox[:min] = Vector[ mn[0] < v[0] ? mn[0] : v[0], mn[1] < v[1] ? mn[1] : v[1], 0 ]
       @boundingbox[:max] = Vector[ mx[0] > v[0] ? mx[0] : v[0], mx[1] > v[1] ? mx[1] : v[1], 0 ]
     end
-    private :update_bounds  #callable by self and ihereters
+    private :update_bounds  #callable by self and inhereters
 
     def render( renderer )
       @commands.each { |cmd| cmd.render( renderer ) }
@@ -444,8 +482,22 @@ module BWCNC
   class PartContext
     attr_reader :partlist, :boundingbox, :firstpoint
 
+    def clone()
+      newpartctx = PartContext.new( @firstpoint )
+      newpartlist = []
+      @partlist.each { |p| newpartlist << p.clone }
+      newbbox = { :min => @boundingbox[:min], :max => @boundingbox[:max] }
+      newpartctx.finishclone( newbbox, newpartlist )
+      newpartctx
+    end
+    def finishclone( boundingbox, partlist )
+      @boundingbox = boundingbox
+      @partlist = partlist
+    end
+    protected :finishclone  # finishclone can be called only by other instances of PartContext
+
     def initialize( startpoint=nil )
-      @firstpoint = startpoint.nil? ? Vector[0,0,0] : Vector[ startpoint[0], startpoint[1], 0 ]
+      @firstpoint = startpoint.nil? ? Vector[0,0,0] : Vector[ startpoint[0], startpoint[1], 0 ] # force zero z
 
       @boundingbox = { :min => @firstpoint, :max => @firstpoint }
       @partlist = []
@@ -561,7 +613,12 @@ module BWCNC
     attr_reader :boundingbox, :offset
     attr_accessor :eol, :mult
 
-    def initialize( startpoint=Vector[0,0,0], scaling=1, eol="\r\n", offset=Vector[0,0,0] )
+    def initialize( filename=nil, startpoint=Vector[0,0,0], scaling=1, eol="\r\n", offset=Vector[0,0,0] )
+
+      @outputfile = STDOUT
+      if ! filename.nil? && filename.is_a?( String )
+        @outputfile = File.new(filename, File::CREAT|File::TRUNC|File::RDWR, 0644)
+      end
 
       @start = startpoint
       @offset = offset
@@ -584,7 +641,7 @@ module BWCNC
     end
 
     def p( string )
-      printf '%s%s', string, @eol
+      @outputfile.printf '%s%s', string, @eol
     end
 
     # this is the interface that should be overridden by subclasses.
@@ -592,10 +649,23 @@ module BWCNC
     def print_start( boundingbox=nil ) ; end
     def print_end   ; end
 
-    def render_all( parts )
+    def render_all( parts, filename=nil )
+
+      filesnotSTDOUT = false
+      if ! filename.nil? && filename.is_a?( String )
+        @outputfile = File.new(filename, File::CREAT|File::TRUNC|File::RDWR, 0644)
+        filesnotSTDOUT = true
+      end
+
       print_start( parts.boundingbox )
       parts.partlist.each { |p| p.render( self ) }
       print_end
+
+      if filesnotSTDOUT
+        @outputfile.close
+        @outputfile = STDOUT
+      end
+
     end
 
     def render( part )
@@ -608,8 +678,8 @@ module BWCNC
   #BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB class GCode < Renderer
   class GCode < Renderer
 
-    def initialize( start=Vector[0,0,0], scaling=1, eol="\r\n", offset=Vector[0,0,0], vbose=false, add_cutting=true )
-      super( start, scaling, eol, offset )
+    def initialize( filename=nil, start=Vector[0,0,0], scaling=1, eol="\r\n", offset=Vector[0,0,0], vbose=false, add_cutting=true )
+      super( filename, start, scaling, eol, offset )
       @cutting_on = false
       @verbose = vbose
       @add_cutting = add_cutting
@@ -716,15 +786,16 @@ module BWCNC
   class SVG < Renderer
     @moveto_color = '#0000ff'
     @lineto_color = '#ff0000'
+    @background_color = '#ffffff'
     @stroke_width = 1
 
     class << self
-      attr_accessor :moveto_color, :lineto_color, :stroke_width
+      attr_accessor :moveto_color, :lineto_color, :background_color, :stroke_width
     end
 
 
-    def initialize( start=Vector[0,0,0], scaling=1, eol="\r\n", offset=Vector[0,0,0] )
-      super( start, scaling, eol, offset )
+    def initialize( filename=nil, start=Vector[0,0,0], scaling=1, eol="\r\n", offset=Vector[0,0,0] )
+      super( filename, start, scaling, eol, offset )
     end
 
     def set_options( opts )
@@ -736,6 +807,7 @@ module BWCNC
       widt, heit = [ boundingbox[:max][0].ceil + 1, boundingbox[:max][1].ceil + 1 ]
       p( '<?xml version="1.0" encoding="UTF-8" standalone="no"?>' )
       p( "<svg xmlns:svg=\"http://www.w3.org/2000/svg\" xmlns=\"http://www.w3.org/2000/svg\" height=\"#{heit}\" width=\"#{widt}\">" )
+      p( sprintf( '<rect height="100%%" width="100%%" style="fill:%s;" />', SVG.background_color ))
     end
 
     def print_end
@@ -747,8 +819,8 @@ module BWCNC
       begp = BWCNC.VectorToNumStringArray( (cmd.start + @offset) * @mult, 2 )
       endp = BWCNC.VectorToNumStringArray( (cmd.end   + @offset) * @mult, 2 )
 
-      printf '<line x1="%s" y1="%s" x2="%s" y2="%s" style="stroke:%s;stroke-width:%s" />%s',
-        begp[0], begp[1], endp[0], endp[1], color, SVG.stroke_width, eol
+      p( sprintf '<line x1="%s" y1="%s" x2="%s" y2="%s" style="stroke:%s;stroke-width:%s" />',
+        begp[0], begp[1], endp[0], endp[1], color, SVG.stroke_width )
 
     end
 
@@ -771,12 +843,12 @@ module BWCNC
       endp = BWCNC.VectorToNumStringArray( (cmd.end    + @offset) * @mult, 2 )
       rdus = cmd.radius * @mult
 
-      printf '<path d="M%s %s A%s,%s 0 %d,%d %s,%s" style="stroke:%s;stroke-width:%s;fill:none" />%s',
+      p( sprintf '<path d="M%s %s A%s,%s 0 %d,%d %s,%s" style="stroke:%s;stroke-width:%s;fill:none" />',
         begp[0], begp[1],
         NumString.new(rdus), NumString.new(rdus),
         (cmd.largearc ? 1 : 0), (cmd.sweep ? 1 : 0),
         endp[0], endp[1],
-        SVG.lineto_color, SVG.stroke_width, eol
+        SVG.lineto_color, SVG.stroke_width )
 
     end
 
