@@ -1,3 +1,5 @@
+#ifndef BWCNCHEXGRID__
+#define BWCNCHEXGRID__
 
 #include <Eigen/Dense>
 
@@ -79,3 +81,4 @@ protected:
 
 };
 
+#endif /* BWCNCHEXGRID__ */

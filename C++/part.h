@@ -18,11 +18,11 @@ class Part
     friend class BWCNC::PartContext;
 public:
     Part() : isnil(true) {}
-    Part( const Eigen::Vector3d & startpoint ) : isnil(false) {}
+    Part( const Eigen::Vector3d & startpoint ) : isnil( false ), start( startpoint ), curpos( startpoint ) { update_bounds( start ); }
     virtual ~Part(){ for( auto c : cmds ) if( c ) delete c; }
 
     virtual void update_position( const Eigen::Vector3d & pos );
-    virtual void render( const BWCNC::Renderer * r ) { for( auto cmd : cmds ) if( cmd ) cmd->render( r ); }
+    virtual void render( BWCNC::Renderer * r ) { for( auto cmd : cmds ) if( cmd ) cmd->render( r ); }
 
     virtual void reposition( const Eigen::Vector3d & pos   );
     virtual void translate(  const Eigen::Vector3d & offst );

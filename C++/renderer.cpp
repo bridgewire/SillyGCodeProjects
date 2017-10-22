@@ -7,7 +7,7 @@
 #include "renderer.h"
 #include "part.h"
 
-void BWCNC::Renderer::render_all( const BWCNC::PartContext & k, const std::string * /* filename */ ) const
+void BWCNC::Renderer::render_all( const BWCNC::PartContext & k, const std::string * /* filename */ )
 {
 #if 0
     if( filename != nullptr )
@@ -39,17 +39,6 @@ protected:
 #endif
 
 
-void BWCNC::SVG::lineto( const BWCNC::Command * cmd ) const
-{
-    if( ! bool(lineto_color) ) return;
-    drawline( cmd, lineto_color );
-}
-void BWCNC::SVG::moveto( const BWCNC::Command * cmd ) const
-{
-    if( ! bool(moveto_color) ) return;
-    drawline( cmd, moveto_color );
-}
-
 #if 0
 void BWCNC::SVG::arcto( const BWCNC::Command * cmd )
 {
@@ -73,8 +62,10 @@ void BWCNC::SVG::drawarc( const BWCNC::Command & cmd, const BWCNC::Color & clr )
 #endif
 
 
-void BWCNC::SVG::drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr ) const
+void BWCNC::SVG::drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr )
 {
+    if( ! bool(moveto_color) ) return;
+
     std::vector<BWCNC::NumString> begp = VectorToNumStringArray( (cmd->begin + offset) * scalar );
     std::vector<BWCNC::NumString> endp = VectorToNumStringArray( (cmd->end   + offset) * scalar );
 
@@ -84,9 +75,9 @@ void BWCNC::SVG::drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr 
             clr.to_rgb24(), stroke_width );
 }
 
-void BWCNC::SVG::print_end() const { printf( "</svg>\n" ); }
+void BWCNC::SVG::print_end() { printf( "</svg>\n" ); }
 
-void BWCNC::SVG::print_start( const BWCNC::Boundingbox & bounds ) const
+void BWCNC::SVG::print_start( const BWCNC::Boundingbox & bounds )
 {
     if( ! bounds ) return;
 

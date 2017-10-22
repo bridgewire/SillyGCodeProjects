@@ -41,7 +41,7 @@ public:
     virtual ~Command(){}
 
     // us the renderer to "render" this command, according to the Renderer's design
-    virtual void render( const BWCNC::Renderer * r ) = 0;
+    virtual void render( BWCNC::Renderer * r ) = 0;
 
     // move part in the direction of the Vector argument: offset
     virtual void translate( const Eigen::Vector3d & offset )
@@ -86,7 +86,7 @@ public:
     Line( const Eigen::Vector2d & f, const Eigen::Vector2d & t )                         : Command( f, t ) {}
     Line( const Eigen::Vector2d & f, const Eigen::Vector2d & t, const BWCNC::Color & c ) : Command( f, t, c ) {}
 
-    virtual void render( const BWCNC::Renderer * r ){ r->lineto( (const BWCNC::Command *)this ); }
+    virtual void render( BWCNC::Renderer * r ){ r->lineto( (const BWCNC::Command *)this ); }
 };
 
 class Move : public Command
@@ -100,7 +100,7 @@ public:
     Move( const Eigen::Vector2d & f, const Eigen::Vector2d & t )                         : Command( f, t ) {}
     Move( const Eigen::Vector2d & f, const Eigen::Vector2d & t, const BWCNC::Color & c ) : Command( f, t, c ) {}
 
-    virtual void render( const BWCNC::Renderer * r ){ r->moveto( this ); }
+    virtual void render( BWCNC::Renderer * r ){ r->moveto( this ); }
 };
 
 };

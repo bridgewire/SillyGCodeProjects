@@ -51,6 +51,9 @@ public:
         update_bounds( obbox.max );
     }
 
+    double width(){  return max[0] - min[0]; }
+    double height(){ return max[1] - min[1]; }
+
     std::ostream & to_ostream( std::ostream & s ) const;
 
 public:
