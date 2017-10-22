@@ -241,6 +241,8 @@ def main
 
   k.scale( parms[:mult] )
   k.remake_boundingbox      # XXX why does this seem necessary? shouldn't be.
+                            # the bounding boxes probably aren't updated by
+                            # transforms. Only the points are update. a bug
 
   # shift the image again to make 0,0 the upper-left corner, making visible the svg.
   min = k.boundingbox[:min]
