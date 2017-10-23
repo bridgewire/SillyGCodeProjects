@@ -193,15 +193,18 @@ static const double w = (2 * M_PI)/30;
 
 static const Eigen::Vector3d shift_tform( const Eigen::Vector3d & v )
 {
-    return 1.8 * Eigen::Vector3d( cos(w*(v[1] + parms.yshift)), sin(w*(v[0] + parms.xshift)), cos(w*(v[1] + parms.yshift)) );
+    return 1.8 * Eigen::Vector3d( cos(w*(v[1] + parms.yshift)), sin(w*(v[0] + parms.xshift)), 0 );
 }
 
 static const Eigen::Matrix3d skew_tform( const Eigen::Vector3d & v )
 {
+
+
+
     Eigen::Matrix3d mat;
     mat <<  cos(w*(v[1] + parms.yshift)), 0, 0,
             0, sin(w*(v[0] + parms.xshift)), 0,
-            0, 0, 1 ;
+            0, 0, 0 ;
     return 1.8 * mat;
 }
 

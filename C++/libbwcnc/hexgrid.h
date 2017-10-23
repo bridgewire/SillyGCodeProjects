@@ -49,6 +49,12 @@ public:
       m_sidelen = len;
       m_scale   = scale;
     }
+    void set_renderer_colors( BWCNC::Renderer * r )
+    {
+        r->set_moveto_color( m_moveto_clr );
+        r->set_lineto_color( m_lineto_clr );
+        r->set_backgd_color( m_bckgrd_clr );
+    }
 
     virtual ~HexGrid(){}
 

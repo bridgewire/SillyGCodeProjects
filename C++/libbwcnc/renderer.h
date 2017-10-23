@@ -1,6 +1,7 @@
 #ifndef BWCNC_RENDERER_H__
 #define BWCNC_RENDERER_H__
 
+#include <stdio.h>
 #include <list>
 #include <iostream>
 #include "boundingbox.h"
@@ -14,9 +15,8 @@ class Command;
 class Renderer
 {
 public:
-    Renderer(){;}
-    //Renderer( std::ostream & s ) : strm(s) {}
-    virtual ~Renderer(){;}
+    Renderer(){}
+    virtual ~Renderer(){}
 
     virtual void render_all( const BWCNC::PartContext & k, const std::string * filename = nullptr ) ;
 
@@ -30,6 +30,9 @@ public:
     virtual void setoff( const Eigen::Vector3d & vec ){ offset = vec; }
     virtual void set_line_end( const char * str ){ eol = str; }
 
+    virtual void set_moveto_color( const char * ) {}
+    virtual void set_lineto_color( const char * ) {}
+    virtual void set_backgd_color( const char * ) {}
 
 protected:
     Eigen::Vector3d offset;
@@ -44,11 +47,15 @@ public:
     GraphicalRenderer(){;}
     virtual ~GraphicalRenderer(){;}
 
-    void set_moveto_color( const char * spec ) { moveto_color = BWCNC::Color(spec); }
-    void set_lineto_color( const char * spec ) { lineto_color = BWCNC::Color(spec); }
-    void set_backgd_color( const char * spec ) { backgd_color = BWCNC::Color(spec); }
+    virtual void set_moveto_color( const char * spec ) { moveto_color = BWCNC::Color(spec); }
+    virtual void set_lineto_color( const char * spec ) { lineto_color = BWCNC::Color(spec); }
+    virtual void set_backgd_color( const char * spec ) { backgd_color = BWCNC::Color(spec); }
 
 protected:
+    virtual void lineto( const BWCNC::Command * cmd ) { drawline( cmd, lineto_color ); }
+    virtual void moveto( const BWCNC::Command * cmd ) { drawline( cmd, moveto_color ); }
+  //virtual void arcto ( const BWCNC::Command * cmd ) { drawarc(  cmd, moveto_color ); }
+
     virtual void drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr ) = 0;
   //virtual void drawarc(  const BWCNC::Command * cmd, const BWCNC::Color & clr );
 
@@ -65,11 +72,6 @@ public:
     virtual ~SVG(){;}
 
 protected:
-
-    virtual void lineto( const BWCNC::Command * cmd ) { drawline( cmd, lineto_color ); }
-    virtual void moveto( const BWCNC::Command * cmd ) { drawline( cmd, moveto_color ); }
-  //virtual void arcto ( const BWCNC::Command * cmd ) { drawarc(  cmd, moveto_color ); }
-
     virtual void drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr );
   //virtual void drawarc(  const BWCNC::Command * cmd, const BWCNC::Color & clr );
 
