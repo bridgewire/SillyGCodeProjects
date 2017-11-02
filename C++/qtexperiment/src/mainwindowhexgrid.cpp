@@ -42,11 +42,11 @@ static struct cmdline_params {
   //90, 50, 1, .2,
     30, 20, 1, .1,
   //30, 20, 1, .2,
-    1, 10, 0, 0,
+    1, 20, 0, 0,
   //1, 30, 0, 0,
     true,
     nullptr,     // don't show moveto lines
-    "#ff0000",
+    "#009900",
     "#fe8736",
     1, 1, 0,
     .1,
@@ -58,17 +58,21 @@ void mainwindow::refresh_hexgrid()
 {
   //static const Eigen::Vector3d offset(5,5,0);
     BWCNC::PartContext k;
+    BWCNC::PartContext k2;
 
     crosshatchwaves chw_tform;
+    crosshatchwaves chw_tform2;
 
     parms.a_input = a_value;
     parms.b_input = b_value;
     parms.ticks   = ticks;
 
-    chw_tform.ticks = ticks * parms.tick_size;
-    chw_tform.shiftscale = (b_value - 499)/50.0;
+    chw_tform.ticks  = (ticks + 10) * parms.tick_size;
+    chw_tform2.ticks =  ticks       * parms.tick_size;
+
+    chw_tform2.shiftscale = chw_tform.shiftscale = (b_value - 499)/50.0;
 #if 1
-    chw_tform.w =  (a_value - 499)/(M_PI * 100);
+    chw_tform2.w          = chw_tform.w          =  (a_value - 499)/(M_PI * 100);
 #else
     if( parms.a_input > 1 )
     {
@@ -98,10 +102,13 @@ void mainwindow::refresh_hexgrid()
 
     //shift2center(k);
 
+    k.copy_into( k2 );
+
   //k.position_dependent_transform( skew_tform, shift_tform );
   //k.position_dependent_transform( skew_tform, nullptr );
   //k.position_dependent_transform( nullptr, shift_tform );
     k.position_dependent_transform( &chw_tform );
+    k2.position_dependent_transform( &chw_tform2 );
 
   //k.remake_boundingbox();
 
@@ -121,6 +128,7 @@ void mainwindow::refresh_hexgrid()
     k.scale( hrtio > wrtio ? wrtio : hrtio );
 #else
     k.scale( parms.scale );
+    k2.scale( parms.scale );
 #endif
 
   //shift2positive(k, &offset);
@@ -129,12 +137,32 @@ void mainwindow::refresh_hexgrid()
     QImage img( w, h, QImage::Format_RGB32 );
 
     PixmapRenderer renderer( &img );
-    hxgrd.set_renderer_colors( & renderer );
 
+    hxgrd.set_renderer_colors( & renderer );
     renderer.render_all( k );
+
+    renderer.set_backgd_color( nullptr );
+    renderer.set_lineto_color( "#ff0000" );
+    renderer.render_all( k2 );
 
     QPixmap pxmp;
     if( pxmp.convertFromImage( img ) )
         pixmap_item->setPixmap(pxmp);
 }
 
+#if 0
+        k.copy_into( kcopy );
+        kcopy.remake_boundingbox();
+        shift2center( kcopy );
+        kcopy.position_dependent_transform( rotation_tform, nullptr );
+        kcopy.remake_boundingbox();
+        shift2positive( kcopy );
+        kcopy.remake_boundingbox();
+
+        //renderer.render_all( k );
+
+        BWCNC::SVG renderer2;
+        kcopy.remake_boundingbox();
+        renderer2.render_all( kcopy );
+
+#endif

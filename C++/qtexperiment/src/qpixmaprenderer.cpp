@@ -10,7 +10,8 @@ void PixmapRenderer::drawline( const BWCNC::Command * cmd, const BWCNC::Color & 
 
 void PixmapRenderer::print_start( const BWCNC::Boundingbox & )
 {
-    im->fill( QColor(backgd_color.to_rgb24()) );
+    if( bool(backgd_color) )
+        im->fill( QColor(backgd_color.to_rgb24()) );
     p.begin(im);
     p.setRenderHint( QPainter::Antialiasing );
     pen.setWidth(1);
