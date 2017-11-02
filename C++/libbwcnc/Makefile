@@ -13,7 +13,7 @@ LIBS	=
 .cpp.o:
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o $@ $<
 
-TARGET	= printhexgrid
+TARGET	= printhexgrid color-unittest
 
 all: $(TARGET)
 
@@ -21,12 +21,13 @@ printhexgrid: boundingbox.o color.o command.o functions.o hexgrid-unittest.o num
 	$(LINK) $(LFLAGS) -o $@ $? $(LIBS)
 
 hexgrid-unittest.o: hexgrid.cpp
-	$(CXX) -c -DUNITTEST $(CXXFLAGS) $(INCPATH) -o $@ $<
+	$(CXX) -DHEXGRID_UNITTEST -c $(CXXFLAGS) $(INCPATH) -o $@ $<
+
+color-unittest: color.cpp
+	$(CXX) -DBWCNCCOLOR_UNITTEST $(CXXFLAGS) $(INCPATH) -o $@ $<
+
 
 .PHONY: clean
 clean:
 	rm -f *.o $(TARGET)
-
-
-
 

@@ -48,7 +48,7 @@ BWCNC::Part * BWCNC::HexGrid::hexagon( BWCNC::PartContext & k, const double side
   }
 
   BWCNC::Part * part = k.get_new_part();
-  part->update_position( start );
+  part->update_starting_position( start );
 
   Eigen::Vector3d vec = start;
   for( int i = 0; i < 6; i++ )
@@ -119,7 +119,7 @@ void BWCNC::HexGrid::fill_partctx_with_hexgrid( BWCNC::PartContext & k )
       if( row_iseven ) k.add_part( hexagon( k, m_sidelen, start, skip0 ) );
       else             k.add_part( hexagon( k, m_sidelen, start, skip1 ) );
     }
-    
+
 
     for( int j = 1; j < m_cols; j++ )
     {
@@ -146,13 +146,12 @@ void BWCNC::HexGrid::fill_partctx_with_hexgrid( BWCNC::PartContext & k )
 
         if( p != nullptr )
         {
-          std::cerr << "context: " << k.get_bbox();
-          std::cerr << " -- adding new: " << p->get_bbox(); 
+          //std::cerr << "context: " << k.get_bbox();
+          //std::cerr << " -- adding new: " << p->get_bbox();
           k.add_part( p );
-          std::cerr << " -- results in context: " << k.get_bbox() << "\n";
+          //std::cerr << " -- results in context: " << k.get_bbox() << "\n";
         }
-        else
-          std::cerr << "no hexagon part was made\n";
+        //else std::cerr << "no hexagon part was made\n";
       }
     }
   }
@@ -161,7 +160,7 @@ void BWCNC::HexGrid::fill_partctx_with_hexgrid( BWCNC::PartContext & k )
   //###############################################################################################################
 }
 
-#ifdef UNITTEST
+#ifdef HEXGRID_UNITTEST
 
 struct cmdline_params {
     int cols;
@@ -180,6 +179,7 @@ struct cmdline_params {
 } parms = {
     //5, 5, 3, 2,
     40, 40, 1, .2,
+    //4, 4, 1, .2,
     .2, 60, 0, 0,
     true,
     nullptr,     // "#0000FF",
@@ -196,11 +196,19 @@ static const Eigen::Vector3d shift_tform( const Eigen::Vector3d & v )
     return 1.8 * Eigen::Vector3d( cos(w*(v[1] + parms.yshift)), sin(w*(v[0] + parms.xshift)), 0 );
 }
 
+static const Eigen::Matrix3d rotation_tform( const Eigen::Vector3d & )
+{
+    Eigen::Matrix3d mat;
+    double t = M_PI/2;
+    mat <<  cos(t), -sin(t), 0,
+            sin(t),  cos(t), 0,
+            0, 0, 1 ;
+    return mat;
+}
+
+
 static const Eigen::Matrix3d skew_tform( const Eigen::Vector3d & v )
 {
-
-
-
     Eigen::Matrix3d mat;
     mat <<  cos(w*(v[1] + parms.yshift)), 0, 0,
             0, sin(w*(v[0] + parms.xshift)), 0,
@@ -239,12 +247,13 @@ static void shift2positive( BWCNC::PartContext & k )
 int main( int argc, char ** argv )
 {
     BWCNC::PartContext k;
-    BWCNC::Boundingbox bbox;
-    Eigen::Vector3d min, max;
+    BWCNC::PartContext kcopy;
+  //BWCNC::Boundingbox bbox;
+  //Eigen::Vector3d min, max;
 
     if( handle_params( argc, argv ) )
     {
-        BWCNC::HexGrid grid( parms.cols, parms.rows, parms.sidelen, parms.scale, 
+        BWCNC::HexGrid grid( parms.cols, parms.rows, parms.sidelen, parms.scale,
                              parms.nested, parms.nested_spacing, ! parms.suppress_grid );
 
         grid.fill_partctx_with_hexgrid( k );
@@ -265,7 +274,22 @@ int main( int argc, char ** argv )
         //renderer.set_moveto_color( parms.moveto_clr );
         //renderer.set_lineto_color( parms.lineto_clr );
 
-        renderer.render_all( k );
+        k.copy_into( kcopy );
+        //shift2center( kcopy );
+      //kcopy.position_dependent_transform( skew_tform, shift_tform );
+//        kcopy.scale( .1 );
+        kcopy.remake_boundingbox();
+        shift2center( kcopy );
+        kcopy.position_dependent_transform( rotation_tform, nullptr );
+        kcopy.remake_boundingbox();
+        shift2positive( kcopy );
+        kcopy.remake_boundingbox();
+
+        //renderer.render_all( k );
+
+        BWCNC::SVG renderer2;
+        kcopy.remake_boundingbox();
+        renderer2.render_all( kcopy );
     }
 
     return 0;
@@ -279,5 +303,5 @@ int main( int argc, char ** argv )
              const char * clr_lineto = "#ff0000",
              const char * clr_moveto = nullptr,
              const char * clr_bckgrd = "#ffffff" )
-#endif 
+#endif
 

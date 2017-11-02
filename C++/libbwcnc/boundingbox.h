@@ -26,6 +26,9 @@ public:
     virtual void pos_dep_tform( mvf_t mvf, vvf_t vvf ) { BWCNC::pos_dep_tform( mvf, vvf, min ); BWCNC::pos_dep_tform( mvf, vvf, max ); }
     virtual void position_dependent_transform( mvf_t mvf, vvf_t vvf ) { pos_dep_tform( mvf, vvf ); }
 
+    virtual void pos_dep_tform( pdt_t * tform ) { BWCNC::pos_dep_tform( tform, min ); BWCNC::pos_dep_tform( tform, max ); }
+    virtual void position_dependent_transform( pdt_t * tform ) { pos_dep_tform( tform ); }
+
     void update_bounds( const Eigen::Vector3d & newv )
     {
         if( ! haspoint )

@@ -9,6 +9,7 @@
 #include <bwcnc.h>
 
 #include "mainwindow.h"
+#include "stdtforms.h"
 
 //using namespace BWCNC;
 
@@ -32,68 +33,25 @@ static struct cmdline_params {
     int a_input;
     int b_input;
     int ticks;
+    double tick_size;
 
     double scene_width;
     double scene_height;
 
 } parms = {
   //90, 50, 1, .2,
-  //40, 25, 1, .2,
-    20, 10, 1, .2,
-  //1, 10, 0, 0,
-    5, 10, 0, 0,
+    30, 20, 1, .1,
+  //30, 20, 1, .2,
+    1, 10, 0, 0,
+  //1, 30, 0, 0,
     true,
     nullptr,     // don't show moveto lines
     "#ff0000",
     "#fe8736",
     1, 1, 0,
+    .1,
     .4, .4
 };
-
-#if 0
-static const Eigen::Vector3d shift_tform( const Eigen::Vector3d & v )
-{
-    const double w  = parms.sidelength * M_PI;
-    const double u  = parms.sidelength * (1 + parms.b_input) / 400.0;
-    const double o =  (parms.sidelength * parms.a_input / 50.0)/2;
-
-    const double x = u * cos(( v[0] + o ) / w);
-    const double y = u * cos(( v[1] - o ) / w);
-
-    return Eigen::Vector3d( x, y, 0 );
-}
-#else
-static const Eigen::Vector3d shift_tform( const Eigen::Vector3d & v )
-{
-    //const double w  = 2.0 * M_PI / 40.0
-    const double w  = 1 / (3 * M_PI);
-    //const double u  = parms.sidelength * (1 + ) / 400.0;
-    //const double o =  (parms.sidelength * parms.a_input / 50.0)/2;
-
-    const double x = 7.0 * sin( w * ( v[1] + parms.b_input + parms.ticks ) );
-    const double y = 7.0 * sin( w * ( v[0] + parms.b_input + parms.ticks ) );
-
-    return Eigen::Vector3d( x, y, 0 );
-}
-#endif
-
-#if 0
-static const Eigen::Matrix3d skew_tform( const Eigen::Vector3d & v )
-{
-    //const double w = (2 * M_PI)/15.0;
-    const double w = 5000*(2 * M_PI)/(parms.a_input + 1);
-
-    Eigen::Matrix3d mat;
-
-    mat <<  1.8 * sin(w*(v[1] + parms.yshift)), 0, 0,
-            0, 1.8 * sin(w*(v[0] + parms.xshift)), 0,
-            0, 0, 0 ;
-    return mat;
-}
-#endif
-
-static void shift2center(   BWCNC::PartContext & k, Eigen::Vector3d * offset = nullptr );
-static void shift2positive( BWCNC::PartContext & k, const Eigen::Vector3d * offset = nullptr );
 
 
 void mainwindow::refresh_hexgrid()
@@ -101,25 +59,30 @@ void mainwindow::refresh_hexgrid()
   //static const Eigen::Vector3d offset(5,5,0);
     BWCNC::PartContext k;
 
+    crosshatchwaves chw_tform;
+
     parms.a_input = a_value;
     parms.b_input = b_value;
     parms.ticks   = ticks;
 
-    printf( "refreshing with ticks: %d\n", ticks );
-
+    chw_tform.ticks = ticks * parms.tick_size;
+    chw_tform.shiftscale = (b_value - 499)/50.0;
+#if 1
+    chw_tform.w =  (a_value - 499)/(M_PI * 100);
+#else
     if( parms.a_input > 1 )
     {
-        parms.cols = 20 + int(80*(parms.a_input/1000.0));
-        parms.rows = 10 + int(30*(parms.a_input/1000.0));
+        parms.cols = 30 + int(80*(parms.a_input/1000.0));
+        parms.rows = 20 + int(30*(parms.a_input/1000.0));
         parms.sidelength = 1.0 + 4.0*(1.0 - parms.a_input/1000.0);
     }
     else
     {
+        parms.cols = 30;
         parms.cols = 20;
-        parms.cols = 10;
         parms.sidelength = 5;
     }
-
+#endif
 
     BWCNC::HexGrid hxgrd(
             parms.cols, parms.rows, parms.sidelength, parms.scale,
@@ -137,8 +100,10 @@ void mainwindow::refresh_hexgrid()
 
   //k.position_dependent_transform( skew_tform, shift_tform );
   //k.position_dependent_transform( skew_tform, nullptr );
-    k.position_dependent_transform( nullptr, shift_tform );
-    k.remake_boundingbox();
+  //k.position_dependent_transform( nullptr, shift_tform );
+    k.position_dependent_transform( &chw_tform );
+
+  //k.remake_boundingbox();
 
     qreal w = scene->sceneRect().width(); // QRectF
     qreal h = scene->sceneRect().height(); // QRectF
@@ -171,23 +136,5 @@ void mainwindow::refresh_hexgrid()
     QPixmap pxmp;
     if( pxmp.convertFromImage( img ) )
         pixmap_item->setPixmap(pxmp);
-}
-
-static void shift2center(  BWCNC::PartContext & k, Eigen::Vector3d * )
-{
-    BWCNC::Boundingbox bbox = k.get_bbox();
-    Eigen::Vector3d min = bbox.min;
-    Eigen::Vector3d max = bbox.max;
-    k.translate( Eigen::Vector3d( -fabs(max[0] - min[0])/2.0, -fabs(max[1] - min[1])/2.0, 0 ) );
-}
-
-static void shift2positive( BWCNC::PartContext & k, const Eigen::Vector3d * offset )
-{
-    BWCNC::Boundingbox bbox = k.get_bbox();
-    Eigen::Vector3d shift = -1 * bbox.min;
-
-    if( offset ) shift -= *offset;
-
-    k.translate( shift );
 }
 

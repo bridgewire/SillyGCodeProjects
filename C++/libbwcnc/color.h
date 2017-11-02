@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 namespace BWCNC {
 
@@ -24,7 +25,7 @@ public:
     virtual ~Color(){}
 
     uint32_t to_rgb24() const { uint32_t o = 0; for( int i = 0; i < 3; i++ ) o |= ((uint32_t)rgb[i]) << (16 - (i * 8)); return o; }
-    std::ostream & to_ostream( std::ostream & s ) const { s << '#' << std::hex << to_rgb24(); return s; } ;
+    std::ostream & to_ostream( std::ostream & s ) const { char b[8]; snprintf(b,8,"%06x", to_rgb24()); s << '#' << b; return s; } ;
 
     bool operator!() const { return isnil; }
     explicit operator bool() const { return ! isnil; }

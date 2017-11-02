@@ -13,6 +13,7 @@ TARGET = qtcreatortest
 TEMPLATE = app
 
 DESTDIR = $$PWD/build
+OBJECTS_DIR = $$PWD/build/.obj
 SRCPATH = $$PWD/src
 LIBBWCNC_SRCPATH = $$PWD/../libbwcnc
 
@@ -22,11 +23,12 @@ INCLUDEPATH += /usr/include/eigen3 \
 SOURCES +=  $$SRCPATH/main.cpp \
             $$SRCPATH/mainwindow.cpp \
             $$SRCPATH/qpixmaprenderer.cpp \
-            $$SRCPATH/mainwindowhexgrid.cpp
+            $$SRCPATH/mainwindowhexgrid.cpp \
 
 
 HEADERS  += $$SRCPATH/mainwindow.h \
-            $$SRCPATH/qpixmaprenderer.h
+            $$SRCPATH/qpixmaprenderer.h \
+            $$SRCPATH/stdtforms.h
 
 
 SOURCES +=  $$LIBBWCNC_SRCPATH/boundingbox.cpp \

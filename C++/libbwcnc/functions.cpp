@@ -22,22 +22,26 @@ std::vector<BWCNC::NumString> VectorToNumStringArray( const Eigen::Vector2d v )
     return VectorToNumStringArray( u );
 }
 
-
-void position_dependent_transform( mvf_t mvf, vvf_t vvf, Eigen::Vector3d & v )
+void pos_dep_tform( mvf_t mvf, vvf_t vvf, Eigen::Vector3d & v )
 {
     Eigen::Vector3d v_new  = v;
-
     if( mvf != nullptr ) v_new = mvf( v ) * v;
     if( vvf != nullptr ) v_new += vvf( v );
-
     v = v_new;
 }
 
-// this is just a shorter name for position_dependent_transform
-void pos_dep_tform( mvf_t mvf, vvf_t vvf, Eigen::Vector3d & v )
+// the above implements these three
+void pos_dep_tform( pdt_t * t, Eigen::Vector3d & v )
 {
-    position_dependent_transform( mvf, vvf, v );
+    Eigen::Vector3d v_new  = v;
+    if( t->has_mvf() ) v_new  = t->mvf( v ) * v;
+    if( t->has_vvf() ) v_new += t->vvf( v );
+    v = v_new;
 }
+
+
+void position_dependent_transform( mvf_t mvf, vvf_t vvf, Eigen::Vector3d & v ) { pos_dep_tform(    mvf,    vvf, v ); }
+void position_dependent_transform( pdt_t * t, Eigen::Vector3d & v )            { pos_dep_tform( t, v ); }
 
 };
 

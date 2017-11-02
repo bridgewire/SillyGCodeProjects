@@ -62,7 +62,11 @@ public:
     }
 
     virtual void pos_dep_tform( mvf_t mvf, vvf_t vvf );
+    virtual void pos_dep_tform( pdt_t * tform );
     virtual void position_dependent_transform( mvf_t mvf, vvf_t vvf ) { pos_dep_tform( mvf, vvf ); }
+    virtual void position_dependent_transform( pdt_t * tform ) { pos_dep_tform( tform ); }
+
+    virtual Command * new_copy() const = 0;
 
 protected:
     virtual void begindflt() { begin = Eigen::Vector3d(0,0,0); }
@@ -87,6 +91,8 @@ public:
     Line( const Eigen::Vector2d & f, const Eigen::Vector2d & t, const BWCNC::Color & c ) : Command( f, t, c ) {}
 
     virtual void render( BWCNC::Renderer * r ){ r->lineto( (const BWCNC::Command *)this ); }
+
+    virtual Line * new_copy() const { Line * nl = new Line; *nl = *this; return nl; }
 };
 
 class Move : public Command
@@ -101,6 +107,8 @@ public:
     Move( const Eigen::Vector2d & f, const Eigen::Vector2d & t, const BWCNC::Color & c ) : Command( f, t, c ) {}
 
     virtual void render( BWCNC::Renderer * r ){ r->moveto( this ); }
+
+    virtual Move * new_copy() const { Move * nm = new Move; *nm = *this; return nm; }
 };
 
 };

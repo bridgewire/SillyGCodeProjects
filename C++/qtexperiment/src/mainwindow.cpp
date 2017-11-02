@@ -54,29 +54,6 @@ mainwindow::~mainwindow()
     printf( "~mainwindow() deleted ui\n" );
 }
 
-#if 0
-void mainwindow::refresh_img()
-{
-    QPen linto_pen(Qt::red);
-    linto_pen.setWidth(1);
-
-    // scene->clear();
-    qreal w = scene->sceneRect().width(); // QRectF
-    qreal h = scene->sceneRect().height(); // QRectF
-    printf( "w:%f, h:%f\n", w, h );
-    QImage img( w, h, QImage::Format_RGB32 );
-    img.fill( Qt::white );
-
-    p.begin( &img );
-    p.drawLine( (a_value * w)/1000, 0, w, (b_value * h)/1000 );
-    p.end();
-
-    QPixmap pxmp;
-    if( pxmp.convertFromImage( img ) )
-        pixmap_item->setPixmap(pxmp);
-}
-#endif
-
 void mainwindow::timer_event()
 {
     ticks++;

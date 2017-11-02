@@ -25,3 +25,9 @@ void BWCNC::Command::pos_dep_tform( mvf_t mvf, vvf_t vvf )
     BWCNC::pos_dep_tform( mvf, vvf, end );
 }
 
+void BWCNC::Command::pos_dep_tform( pdt_t * tform )
+{
+    BWCNC::pos_dep_tform( tform, begin );
+    BWCNC::pos_dep_tform( tform, end );
+}
+
