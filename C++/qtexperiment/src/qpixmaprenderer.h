@@ -8,16 +8,19 @@
 
 //using namespace BWCNC;
 
-class PixmapRenderer : public BWCNC::GraphicalRenderer 
+class PixmapRenderer : public BWCNC::GraphicalRenderer
 {
 public:
-    PixmapRenderer() : im(nullptr) {}
+    PixmapRenderer() {}
     PixmapRenderer( QImage * img ) : im(img) {}
     virtual ~PixmapRenderer() {}
+
     void set_image( QImage * img ) { im = img; }
+    int debug_countdown = 0;
+    bool renderonly_positive_z = false;
 
 protected:
-    QImage * im;
+    QImage * im = nullptr;
     QPainter p;
     QPen pen; // lineto_pen; moveto_pen;
 

@@ -29,8 +29,14 @@ public Q_SLOTS:
     void timer_event();
 
 protected:
-    //void refresh_img();
-    void refresh_hexgrid();
+    void refresh_selected_hexgrid();
+  //void refresh_hexgrid();
+
+    void refresh_hexgrid_xhatchwaves();
+
+    void create_hexgrid_cylinder();
+    void refresh_hexgrid_cylinder();
+
     bool toggle_timer();
 
 protected:
@@ -42,11 +48,15 @@ protected:
     QGraphicsScene * scene = nullptr;
     QGraphicsPixmapItem * pixmap_item = nullptr;
     int a_value = 0;
-    int b_value = 0;
+    int b_value = 500;
+    bool p_bool = false;
     PixmapRenderer hexes;
 
+    BWCNC::PartContext kontext;
+    bool kontext_isready = false;
+
 private:
-    Ui::mainwindow *ui = nullptr;
+    Ui::mainwindow * ui = nullptr;
 };
 
 #endif // MAINWINDOW_H

@@ -13,7 +13,7 @@
 
 //using namespace BWCNC;
 
-#if 0
+
 static struct cmdline_params {
     int cols;
     int rows;
@@ -39,7 +39,8 @@ static struct cmdline_params {
     double scene_height;
 
 } parms = {
-    50, 10, 1, .2,
+    50, 20, 1, .2,
+  //50, 10, 1, .2,
   //20, 20, 1, .2,
   //30, 20, 1, .1,
   //30, 20, 1, .2,
@@ -80,6 +81,20 @@ public:
 
     const Eigen::Matrix3d mvf( const Eigen::Vector3d & ) { Eigen::Matrix3d mat; mat << ::cos(t), 0, ::sin(t),   0, 1, 0,   -::sin(t), 0, ::cos(t); return mat; }
     const Eigen::Vector3d vvf( const Eigen::Vector3d & ) { return Eigen::Vector3d(0,0,0); }
+};
+
+class skew_X : public BWCNC::position_dependent_transform_t
+{
+public:
+    double shiftratio; // theta
+public:
+    skew_X( double ratio = .01 )
+        : position_dependent_transform_t(false, true), shiftratio(ratio)
+    {}
+    virtual ~skew_X(){}
+
+    const Eigen::Matrix3d mvf( const Eigen::Vector3d & ) { return Eigen::Matrix3d::Identity(); }
+    const Eigen::Vector3d vvf( const Eigen::Vector3d & v ) { return Eigen::Vector3d(0,shiftratio*v[0],0); }
 };
 
 
@@ -186,9 +201,13 @@ void mainwindow::create_hexgrid_cylinder()
 
     shift2center(kontext);
 
+    skew_X skew(1/30.0);
+    kontext.position_dependent_transform( &skew );
+    kontext.remake_boundingbox();
+
     BWCNC::Boundingbox bbox = kontext.get_bbox();
     mkcylinder cyltform;
-    cyltform.x_max = bbox.max[0];
+    cyltform.x_max = 0.995 * bbox.max[0];
     kontext.position_dependent_transform( &cyltform );
     kontext.remake_boundingbox();
 
@@ -198,7 +217,7 @@ void mainwindow::create_hexgrid_cylinder()
 }
 
 
-void mainwindow::refresh_hexgrid()
+void mainwindow::refresh_hexgrid_cylinder()
 {
   //static const Eigen::Vector3d offset(5,5,0);
     BWCNC::PartContext k;
@@ -245,4 +264,4 @@ void mainwindow::refresh_hexgrid()
     if( pxmp.convertFromImage( img ) )
         pixmap_item->setPixmap(pxmp);
 }
-#endif
+

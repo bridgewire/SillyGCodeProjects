@@ -6,17 +6,15 @@
 #include <QKeyEvent>
 #include <QPen>
 
-void mainwindow::a_slider_changed(int value) { a_value = value; refresh_hexgrid(); }
-void mainwindow::b_slider_changed(int value) { b_value = value; refresh_hexgrid(); }
+
+void mainwindow::refresh_selected_hexgrid(){ refresh_hexgrid_cylinder(); }
+
+void mainwindow::a_slider_changed(int value) { a_value = value; refresh_selected_hexgrid(); }
+void mainwindow::b_slider_changed(int value) { b_value = value; refresh_selected_hexgrid(); }
 
 
 mainwindow::mainwindow(QWidget *parent)
-  : QMainWindow(parent),
-    tmr_interval_msec(100),
-    ticks(0), tmr_active(false),
-    scene(nullptr), pixmap_item(nullptr),
-    a_value(0), b_value(500),
-    ui(new Ui::mainwindow)
+  : QMainWindow(parent), ui(new Ui::mainwindow)
 {
     ui->setupUi(this);
 
@@ -45,7 +43,7 @@ mainwindow::mainwindow(QWidget *parent)
     ui->a_hSlider->setValue( a_value );
     ui->b_hSlider->setValue( b_value );
 
-    refresh_hexgrid();
+    refresh_selected_hexgrid();
 }
 
 mainwindow::~mainwindow()
@@ -57,7 +55,7 @@ mainwindow::~mainwindow()
 void mainwindow::timer_event()
 {
     ticks++;
-    refresh_hexgrid();
+    refresh_selected_hexgrid();
 }
 
 bool mainwindow::toggle_timer()
@@ -99,6 +97,8 @@ void mainwindow::keyPressEvent( QKeyEvent * e )
             printf( "tmr_interval_msec: %d\n", tmr_interval_msec );
             tmr.setInterval( tmr_interval_msec );
         }
+    case Qt::Key_P:
+        p_bool = ! p_bool;
         break;
     }
 }

@@ -24,6 +24,8 @@ SOURCES +=  $$SRCPATH/main.cpp \
             $$SRCPATH/mainwindow.cpp \
             $$SRCPATH/qpixmaprenderer.cpp \
             $$SRCPATH/mainwindowhexgrid.cpp \
+            $$SRCPATH/xhatchwaves.cpp \
+            $$SRCPATH/cylinder.cpp
 
 
 HEADERS  += $$SRCPATH/mainwindow.h \
