@@ -8,6 +8,9 @@
 
 
 void mainwindow::refresh_selected_hexgrid(){ refresh_hexgrid_cylinder(); }
+//void mainwindow::refresh_selected_hexgrid(){ refresh_hexgrid(); }
+//void mainwindow::refresh_selected_hexgrid(){ refresh_hexgrid_xhatchwaves(); }
+
 
 void mainwindow::a_slider_changed(int value) { a_value = value; refresh_selected_hexgrid(); }
 void mainwindow::b_slider_changed(int value) { b_value = value; refresh_selected_hexgrid(); }
@@ -99,6 +102,9 @@ void mainwindow::keyPressEvent( QKeyEvent * e )
         }
     case Qt::Key_P:
         p_bool = ! p_bool;
+        break;
+    case Qt::Key_B:
+        b_cmd = true;
         break;
     }
 }

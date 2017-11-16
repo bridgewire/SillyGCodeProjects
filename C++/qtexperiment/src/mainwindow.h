@@ -30,7 +30,7 @@ public Q_SLOTS:
 
 protected:
     void refresh_selected_hexgrid();
-  //void refresh_hexgrid();
+    void refresh_hexgrid();
 
     void refresh_hexgrid_xhatchwaves();
 
@@ -50,6 +50,7 @@ protected:
     int a_value = 0;
     int b_value = 500;
     bool p_bool = false;
+    bool b_cmd = false;
     PixmapRenderer hexes;
 
     BWCNC::PartContext kontext;

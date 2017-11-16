@@ -6,3 +6,4 @@
 #include "part.h"
 #include "renderer.h"
 #include "hexgrid.h"
+#include "mceschliz.h"

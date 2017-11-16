@@ -60,14 +60,17 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
     chw_tform.shiftscale  = (b_value - 499)/50.0;
     chw_tform.w           = (a_value - 499)/(M_PI * 100);
 
-
-    BWCNC::HexGrid hxgrd(
+#if 0
+    BWCNC::HexGrid grid(
             parms.cols, parms.rows, parms.sidelength, parms.scale,
             parms.nested, parms.nested_spacing, ! parms.suppress_grid,
             Eigen::Vector3d( parms.xshift, parms.yshift, 0),
             parms.lineto_clr, parms.moveto_clr, parms.backgd_clr );
+#else
+    BWCNC::LizardGrid grid( parms.cols, parms.rows, parms.sidelength, parms.scale );
+#endif
 
-    hxgrd.fill_partctx_with_hexgrid( k );
+    grid.fill_partctx_with_grid( k );
     //k.remake_boundingbox();
 
     parms.scene_width  = scene->sceneRect().width();
@@ -95,7 +98,7 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
 
     PixmapRenderer renderer( &img );
 
-    hxgrd.set_renderer_colors( & renderer );
+    grid.set_renderer_colors( & renderer );
     renderer.render_all( k );
 
 #if DO2PARTCONTEXTS

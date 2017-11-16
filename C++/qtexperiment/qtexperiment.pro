@@ -38,6 +38,7 @@ SOURCES +=  $$LIBBWCNC_SRCPATH/boundingbox.cpp \
             $$LIBBWCNC_SRCPATH/command.cpp \
             $$LIBBWCNC_SRCPATH/functions.cpp \
             $$LIBBWCNC_SRCPATH/hexgrid.cpp \
+            $$LIBBWCNC_SRCPATH/mceschliz.cpp \
             $$LIBBWCNC_SRCPATH/numstring.cpp \
             $$LIBBWCNC_SRCPATH/part.cpp \
             $$LIBBWCNC_SRCPATH/renderer.cpp
@@ -47,6 +48,7 @@ HEADERS  += $$LIBBWCNC_SRCPATH/boundingbox.h \
             $$LIBBWCNC_SRCPATH/command.h \
             $$LIBBWCNC_SRCPATH/functions.h \
             $$LIBBWCNC_SRCPATH/hexgrid.h \
+            $$LIBBWCNC_SRCPATH/mceschliz.h \
             $$LIBBWCNC_SRCPATH/numstring.h \
             $$LIBBWCNC_SRCPATH/part.h \
             $$LIBBWCNC_SRCPATH/renderer.h \

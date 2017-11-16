@@ -48,6 +48,23 @@ void BWCNC::Part::copy_into( Part & p )
 }
 
 
+void BWCNC::Part::pull_commands_from( BWCNC::Part & p )
+{
+    pull_commands_from( &p );
+}
+void BWCNC::Part::pull_commands_from( BWCNC::Part * p )
+{
+    p->reposition( curpos );  //
+    for( auto cmd : p->cmds )
+    {
+        cmds.push_back( cmd );
+        update_position( cmd->end );
+    }
+
+    moveto_cnt += p->moveto_cnt;
+    lineto_cnt += p->lineto_cnt;
+}
+
 void BWCNC::Part::update_bounds( const Eigen::Vector3d & newpoint )
 {
     bbox.update_bounds( newpoint );
@@ -77,15 +94,19 @@ void BWCNC::Part::update_position( const Eigen::Vector3d & pos )
     update_bounds( pos );
 }
 
-void BWCNC::Part::lineto( const Eigen::Vector3d & to )
-{
-    if( curpos == to ) return;  // don't add null segments
+void BWCNC::Part::lineto( const Eigen::Vector3d & to, bool vecfromcur /* = false */ ) // default accepts 'to' as relative to origin
+{                                                                                     // vecfromcur adds 'to' to curpos
+    Eigen::Vector3d vec = to;
+    if( vecfromcur )
+        vec += curpos;
+
+    if( curpos == vec ) return;  // don't add null segments
 
     lineto_cnt++;
     isclosed = false;  // any added segment breaks 'closed' condition
                        // but see lineto_close() for clarification
-    cmds.push_back( new Line( curpos, to ) );
-    update_position( to );
+    cmds.push_back( new Line( curpos, vec ) );
+    update_position( vec );
 }
 
 void BWCNC::Part::lineto_close( bool & isok )
@@ -102,16 +123,20 @@ void BWCNC::Part::lineto_close( bool & isok )
 }
 
 
-void BWCNC::Part::moveto( const Eigen::Vector3d & to )
-{
-    if( curpos == to ) return;  // don't add null segments
+void BWCNC::Part::moveto( const Eigen::Vector3d & to, bool vecfromcur /* = false */ ) // default accepts 'to' as relative to origin
+{                                                                                     // vecfromcur adds 'to' to curpos
+    Eigen::Vector3d vec = to;
+    if( vecfromcur )
+        vec += curpos;
+
+    if( curpos == vec ) return;  // don't add null segments
 
     moveto_cnt++;
     isclosed = false;  // any added movement breaks 'closed' condition
                        // see lineto_close() for clarification
 
-    cmds.push_back( new Move( curpos, to ) );
-    update_position( to );
+    cmds.push_back( new Move( curpos, vec ) );
+    update_position( vec );
 }
 
 
@@ -167,6 +192,23 @@ void BWCNC::Part::scale( const double scalar )
     transform( mat );
 }
 
+void BWCNC::Part::rotate( double angle, bool degrees /* = false */, int rotationaxis /* = 3 */ )
+{
+    Eigen::Matrix3d mat;
+    double radians = angle;
+    if( degrees )
+        radians = angle * M_PI / 180.0;
+    switch( rotationaxis )
+    {
+    case 1: mat << 1,0,0,  0,::cos(radians),-::sin(radians),  0,::sin(radians),::cos(radians);  break;
+    case 2: mat << ::cos(radians),0,::sin(radians),  0,1,0,  -::sin(radians),::cos(radians),0;  break;
+    case 3: mat << ::cos(radians),-::sin(radians),0,  ::sin(radians),::cos(radians),0,  0,0,1;  break;
+    default: throw "invalid axis specified";   break;
+    }
+
+    transform(mat);
+}
+
     // short and long names for  position_dependent_transform
 void BWCNC::Part::pos_dep_tform( mvf_t mvf, vvf_t vvf )
 {
@@ -203,6 +245,23 @@ void BWCNC::Part::pos_dep_tform( pdt_t * tform )
 /////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////
+
+void BWCNC::PartContext::rotate( double angle, bool degrees /* = false */, int rotationaxis /* = 3 */ )
+{
+    Eigen::Matrix3d mat;
+    double radians = angle;
+    if( degrees )
+        radians = angle * M_PI / 180.0;
+    switch( rotationaxis )
+    {
+    case 1: mat << 1,0,0,  0,::cos(radians),-::sin(radians),  0,::sin(radians),::cos(radians);  break;
+    case 2: mat << ::cos(radians),0,::sin(radians),  0,1,0,  -::sin(radians),::cos(radians),0;  break;
+    case 3: mat << ::cos(radians),-::sin(radians),0,  ::sin(radians),::cos(radians),0,  0,0,1;  break;
+    default: throw "invalid axis specified";  break;
+    }
+
+    transform(mat);
+}
 
 
 void BWCNC::PartContext::reposition( const Eigen::Vector3d & pos )
@@ -258,5 +317,23 @@ void BWCNC::PartContext::add_part( BWCNC::Part * newpart )
     partlist.push_back( newpart );
     partscnt++;
     bbox.union_with( newpart->bbox );
+}
+
+
+void BWCNC::PartContext::append_part( BWCNC::Part * newpart )
+{
+    newpart->reposition( last_coords() );
+    add_part( newpart );
+}
+
+
+void BWCNC::PartContext::append_part_list( std::list<BWCNC::Part *> parts )
+{
+    for( auto p : parts ) append_part( p );
+}
+
+void BWCNC::PartContext::append_part_list( std::vector<BWCNC::Part *> parts )
+{
+    for( auto p : parts ) append_part( p );
 }
 

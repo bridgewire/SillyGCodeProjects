@@ -6,6 +6,9 @@
 
 #include <Eigen/Dense>
 
+
+#include <part.h>
+#include <mceschliz.h>
 #include <bwcnc.h>
 
 #include "mainwindow.h"
@@ -13,7 +16,6 @@
 
 //using namespace BWCNC;
 
-#if 0
 static struct cmdline_params {
     int cols;
     int rows;
@@ -46,13 +48,15 @@ static struct cmdline_params {
     1, 10, 0, 0,
   //1, 30, 0, 0,
     true,
-    nullptr,     // don't show moveto lines
-    "#000000",
+    "#00ff00",     // don't show moveto lines
+    "#ff0000",
     "#fe8736",
     1, 1, 0,
     .1,
     .4, .4
 };
+
+#if 0
 
 class rotationZ : public BWCNC::position_dependent_transform_t
 {
@@ -179,7 +183,7 @@ void mainwindow::create_hexgrid_cylinder()
             Eigen::Vector3d( parms.xshift, parms.yshift, 0),
             parms.lineto_clr, parms.moveto_clr, parms.backgd_clr );
 
-    hxgrd.fill_partctx_with_hexgrid( kontext );
+    hxgrd.fill_partctx_with_grid( kontext );
 
     kontext.scale( parms.scale );
     kontext.remake_boundingbox();
@@ -246,3 +250,87 @@ void mainwindow::refresh_hexgrid()
         pixmap_item->setPixmap(pxmp);
 }
 #endif
+
+typedef enum {
+    to_none,
+    to_center,
+    to_positive
+} shift2_t ;
+
+static void shift2( BWCNC::PartContext & k, shift2_t x_st, shift2_t y_st, shift2_t z_st )
+{
+    BWCNC::Boundingbox bbox = k.get_bbox();
+    Eigen::Vector3d min = bbox.min;
+    Eigen::Vector3d max = bbox.max;
+    Eigen::Vector3d shiftv;
+
+    shift2_t dirs[3] = {x_st, y_st, z_st};
+
+    for( int i = 0; i < 3; i++ )
+    {
+        switch(dirs[i])
+        {
+        case to_center:   shiftv[i] = -fabs(max[0] - min[0])/2.0; break;
+        case to_positive: shiftv[i] =  0;                         break;
+        default: break;
+        }
+    }
+
+    k.reposition( shiftv );
+}
+
+//static void shift2center(   BWCNC::PartContext & k ) { shift2( k, to_center,   to_center,   to_center ); }
+static void shift2positive( BWCNC::PartContext & k ) { shift2( k, to_positive, to_positive, to_positive ); }
+
+
+void mainwindow::refresh_hexgrid()
+{
+    BWCNC::PartContext k;
+    BWCNC::LizardGrid lg;
+
+#if 0
+    if( ! kontext_isready )
+        create_hexgrid_cylinder();
+
+    rotationY rotY( M_PI * (a_value - 500)/50000.0 );
+
+    //const Eigen::Matrix3d mvf( const Eigen::Vector3d & ) { Eigen::Matrix3d mat; mat << ::cos(t), 0, -::sin(t),   0, 1, 0,   ::sin(t), 0, ::cos(t); return mat; }
+  //const Eigen::Matrix3d mat = rotY.mvf( Eigen::Vector3d(0,0,0) );
+  //std::cerr << mat;
+    //kontext.transform( rotY.mvf( Eigen::Vector3d(0,0,0) ) );
+#endif
+
+    //lg.make_cheek2cheek_down_through_knees( k );
+    //lg.make_toe2toe_down_through_cheeks( k );
+    //lg.make_knee2knee_down_through_toes( k );
+    lg.fill_partctx_with_grid( k );
+
+
+    //kontext.copy_into( k );
+    k.remake_boundingbox();
+    shift2positive( k );
+    //shift2center_z( k );
+
+    QImage img( scene->sceneRect().width(), scene->sceneRect().height(), QImage::Format_RGB32 );
+    PixmapRenderer renderer( &img );
+    renderer.renderonly_positive_z = p_bool;
+
+    renderer.set_moveto_color( parms.moveto_clr );
+    renderer.set_lineto_color( parms.lineto_clr );
+    renderer.set_backgd_color( parms.backgd_clr );
+
+    //k.scale( parms.scale );
+#if 1
+    BWCNC::SVG svgrenderer;
+    svgrenderer.render_all( k );
+#endif
+
+    renderer.render_all( k );
+  //renderer.render_all( kontext );
+
+
+    QPixmap pxmp;
+    if( pxmp.convertFromImage( img ) )
+        pixmap_item->setPixmap(pxmp);
+}
+

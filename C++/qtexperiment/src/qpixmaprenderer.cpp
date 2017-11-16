@@ -3,7 +3,7 @@
 void PixmapRenderer::drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr )
 {
     if( ! clr ) return;
-    if( renderonly_positive_z && cmd->begin[2] < 0 && cmd->end[2] < 0 ) return;
+    if( renderonly_positive_z && (cmd->begin[2] < 0 || cmd->end[2] < 0) ) return;
 
     pen.setColor( QColor(clr.to_rgb24()) );
     p.setPen( pen );
@@ -20,7 +20,7 @@ void PixmapRenderer::drawline( const BWCNC::Command * cmd, const BWCNC::Color & 
 
 void PixmapRenderer::print_start( const BWCNC::Boundingbox & )
 {
-    //debug_countdown = 5;
+  //debug_countdown = 5;
 
     if( bool(backgd_color) )
         im->fill( QColor(backgd_color.to_rgb24()) );

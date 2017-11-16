@@ -62,7 +62,7 @@ BWCNC::Part * BWCNC::HexGrid::hexagon( BWCNC::PartContext & k, const double side
 }
 
 
-void BWCNC::HexGrid::fill_partctx_with_hexgrid( BWCNC::PartContext & k )
+void BWCNC::HexGrid::fill_partctx_with_grid( BWCNC::PartContext & k )
 {
   const uint8_t skip0[]    = {1,0,0,0,0,0};
 //const uint8_t skip01[]   = {1,1,0,0,0,0};
@@ -256,7 +256,7 @@ int main( int argc, char ** argv )
         BWCNC::HexGrid grid( parms.cols, parms.rows, parms.sidelen, parms.scale,
                              parms.nested, parms.nested_spacing, ! parms.suppress_grid );
 
-        grid.fill_partctx_with_hexgrid( k );
+        grid.fill_partctx_with_grid( k );
         k.remake_boundingbox();
 
         shift2center( k );

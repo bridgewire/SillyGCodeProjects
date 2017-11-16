@@ -16,7 +16,7 @@ class PartContext;
 class Part
 {
     friend class BWCNC::PartContext;
-public:
+protected:
     void copy_into( Part & p );
 #if 0
     void copy_into( Part & p )
@@ -43,12 +43,16 @@ public:
     }
 #endif
 
-    BWCNC::Part * new_copy() { BWCNC::Part * p = new BWCNC::Part; this->copy_into(*p); return p; }
+public:
+    BWCNC::Part * new_copy() { BWCNC::Part * p = new BWCNC::Part; this->copy_into(*p); return p; } // aka clone
 
 public:
     Part() : isnil(true) {}
     Part( const Eigen::Vector3d & startpoint ) : isnil( false ), isclosed( false ), moveto_cnt( 0 ), lineto_cnt( 0 ), start( startpoint ), curpos( startpoint ) { update_bounds( start ); }
     virtual ~Part(){ for( auto c : cmds ) if( c ) delete c; }
+
+    virtual void pull_commands_from( BWCNC::Part & p );
+    virtual void pull_commands_from( BWCNC::Part * p );
 
     virtual bool update_starting_position( const Eigen::Vector3d & pos );
     virtual void render( BWCNC::Renderer * r ) { for( auto cmd : cmds ) if( cmd ) cmd->render( r ); }
@@ -57,6 +61,7 @@ public:
     virtual void translate(  const Eigen::Vector3d & offst );
     virtual void transform(  const Eigen::Matrix3d & mat   );
     virtual void scale(      const double scalar );
+    virtual void rotate( double angle, bool degrees = false, int rotationaxis = 3 );
 
     // short and long names for  position_dependent_transform
     virtual void pos_dep_tform( mvf_t mvf, vvf_t vvf );
@@ -67,8 +72,8 @@ public:
     virtual void remake_boundingbox();
 
   //virtual void arcto(  const Eigen::Vector3d & to );
-    virtual void lineto( const Eigen::Vector3d & to );
-    virtual void moveto( const Eigen::Vector3d & to );
+    virtual void lineto( const Eigen::Vector3d & to, bool vecfromcur = false );
+    virtual void moveto( const Eigen::Vector3d & to, bool vecfromcur = false );
 
   //virtual void arcto_close( bool & isok );   // makes a 'closed' polygon
     virtual void lineto_close( bool & isok );  // makes a 'closed' polygon
@@ -120,13 +125,20 @@ public:
     virtual ~PartContext(){ for( auto p : partlist ) if( p ) delete p; }
 
     PartContext( const Eigen::Vector3d & startpoint ) : partscnt(0), bbox(startpoint), firstpoint(startpoint), isnil(false) {}
-    void add_part( BWCNC::Part * newpart );
+
     BWCNC::Part * get_new_part() { return new BWCNC::Part( this->last_coords() ); }
+    void add_part( BWCNC::Part * newpart );
+
+    // append_part is like add_part but newpart is repositioned to end of context
+    void append_part( BWCNC::Part * newpart );
+    void append_part_list( std::list<BWCNC::Part *> parts );
+    void append_part_list( std::vector<BWCNC::Part *> parts );
 
     virtual void reposition( const Eigen::Vector3d & pos );
-    virtual void translate(  const Eigen::Vector3d & pos ) { bbox.translate( pos); for( auto prt : partlist ) if( prt ) prt->translate( pos ); }
-    virtual void transform(  const Eigen::Matrix3d & mat ) { bbox.transform( mat); for( auto prt : partlist ) if( prt ) prt->transform( mat ); }
+    virtual void translate(  const Eigen::Vector3d & pos ) { bbox.translate( pos ); for( auto prt : partlist ) if( prt ) prt->translate( pos ); }
+    virtual void transform(  const Eigen::Matrix3d & mat ) { bbox.transform( mat ); for( auto prt : partlist ) if( prt ) prt->transform( mat ); }
     virtual void scale( const double scalar ) { bbox.scale(scalar); for( auto prt : partlist ) if( prt ) prt->scale( scalar ); }
+    virtual void rotate( double angle, bool degrees = false, int rotationaxis = 3 );
 
     // short and long names for  position_dependent_transform
     virtual void pos_dep_tform( mvf_t mvf, vvf_t vvf ) { bbox.pos_dep_tform( mvf, vvf ); for( auto prt : partlist ) if( prt ) prt->pos_dep_tform( mvf, vvf ); }
