@@ -15,7 +15,7 @@ def process_commandline_args
              :nested => 1, :nested_spacing => 0.2,
              :suppress_grid => false,
              :moveto_color => '#0000ff', :lineto_color => '#ff0000',
-             :xshift => 0, :yshift => 0
+             :xshift => 0, :yshift => 0, :gcode => false, :do_tform => false
   }
 
   ARGV.each { |a|
@@ -33,6 +33,8 @@ def process_commandline_args
                                                          then params[:lineto_color]   = v[1]
     elsif v = a.match(/^--xshift=([-.0-9]+)$/)           then params[:xshift]         = v[1].to_f
     elsif v = a.match(/^--yshift=([-.0-9]+)$/)           then params[:yshift]         = v[1].to_f
+    elsif v = a.match(/^--gcode$/)                       then params[:gcode]          = true
+    elsif v = a.match(/^--apply-maths$/)                 then params[:do_tform]       = true
     else abort "\nArborting!!! -- Error: unknown argument #{a}\n\n"
     end
   }
@@ -191,53 +193,57 @@ def main
   max = k.boundingbox[:max]
   k.translate( Vector[ -(max[0] - min[0])/2.0, -(max[1] - min[1])/2.0, 0 ] )
 
-  k.position_dependent_transform( 
-  
-  ##   # spiral
-  ##   nil,
-  ## 
-  ##   lambda { |v|
-  ##   
-  ##     w=2*Math::PI/10.0;
-  ## 
-  ##     d=Math.sqrt(v[0]**2 + v[1]**2);
-  ## 
-  ##     d = (d == 0 ? 0.0000000001 : d );
-  ## 
-  ##     #x = Math.sin(d*w)
-  ## 
-  ##     Vector[ Math.cos(d*w)/1.2, Math.sin(d*w)/1.2, 0 ]
-  ## 
-  ##   } )
-  
-  
-    ##########################################################
-    # cross-hatch waves
-    ##########################################################
-    nil, # no multiplication of coords. translations only.
-  
-    # translation function returns: Vector[ sin(w*y), sin(w*x), 0 ]
-    # where 'w' is a fixed constant. the x coordinate of a point shifts
-    # according to the original value of the y coordinate and vice versa.
-    lambda { |v|
-    
-      # 2*Math::PI * something makes it easy to relate side-lengths
-      # into the number of oscillations.  a side-length of one makes
-      # make it simpler still
-      #
-#      w=2*Math::PI/10.0; # one tenth of an oscillation per unit. 
-      w=2*Math::PI/15.0; # one tenth of an oscillation per unit. 
-#      w=2*Math::PI/20.0; # one twentieth of an oscillation per unit. 
-#      w=2*Math::PI/40.0; # one fortieth of an oscillation per unit.
 
-      # what will this do?
-#      Vector[ Math.sin(w*(v[1] + parms[:yshift])), Math.sin(w*(v[0] + parms[:xshift])), 0 ]
-#      Vector[ 1.5*Math.sin(w*(v[1] + parms[:yshift])), 1.5*Math.sin(w*(v[0] + parms[:xshift])), 0 ]
-      Vector[ 1.8*Math.sin(w*(v[1] + parms[:yshift])), 1.8*Math.sin(w*(v[0] + parms[:xshift])), 0 ]
-#      Vector[ 2*Math.sin(w*(v[1] + parms[:yshift])), 2*Math.sin(w*(v[0] + parms[:xshift])), 0 ]
-#      Vector[ 3*Math.sin(w*(v[1] + parms[:yshift])), 3*Math.sin(w*(v[0] + parms[:xshift])), 0 ]
-    } )
+  if parms[:do_tform]
 
+    k.position_dependent_transform(
+
+    ##   # spiral
+    ##   nil,
+    ##
+    ##   lambda { |v|
+    ##
+    ##     w=2*Math::PI/10.0;
+    ##
+    ##     d=Math.sqrt(v[0]**2 + v[1]**2);
+    ##
+    ##     d = (d == 0 ? 0.0000000001 : d );
+    ##
+    ##     #x = Math.sin(d*w)
+    ##
+    ##     Vector[ Math.cos(d*w)/1.2, Math.sin(d*w)/1.2, 0 ]
+    ##
+    ##   } )
+
+
+      ##########################################################
+      # cross-hatch waves
+      ##########################################################
+      nil, # no multiplication of coords. translations only.
+
+      # translation function returns: Vector[ sin(w*y), sin(w*x), 0 ]
+      # where 'w' is a fixed constant. the x coordinate of a point shifts
+      # according to the original value of the y coordinate and vice versa.
+      lambda { |v|
+
+        # 2*Math::PI * something makes it easy to relate side-lengths
+        # into the number of oscillations.  a side-length of one makes
+        # make it simpler still
+        #
+    #    w=2*Math::PI/10.0; # one tenth of an oscillation per unit.
+        w=2*Math::PI/15.0; # one tenth of an oscillation per unit.
+    #    w=2*Math::PI/20.0; # one twentieth of an oscillation per unit.
+    #    w=2*Math::PI/40.0; # one fortieth of an oscillation per unit.
+
+        # what will this do?
+    #    Vector[ Math.sin(w*(v[1] + parms[:yshift])), Math.sin(w*(v[0] + parms[:xshift])), 0 ]
+    #    Vector[ 1.5*Math.sin(w*(v[1] + parms[:yshift])), 1.5*Math.sin(w*(v[0] + parms[:xshift])), 0 ]
+        Vector[ 1.8*Math.sin(w*(v[1] + parms[:yshift])), 1.8*Math.sin(w*(v[0] + parms[:xshift])), 0 ]
+    #    Vector[ 2*Math.sin(w*(v[1] + parms[:yshift])), 2*Math.sin(w*(v[0] + parms[:xshift])), 0 ]
+    #    Vector[ 3*Math.sin(w*(v[1] + parms[:yshift])), 3*Math.sin(w*(v[0] + parms[:xshift])), 0 ]
+      } )
+
+  end
 
   k.scale( parms[:mult] )
   k.remake_boundingbox      # XXX why does this seem necessary? shouldn't be.
@@ -249,10 +255,15 @@ def main
   max = k.boundingbox[:max]
   k.translate( Vector[ -min[0], -min[1], 0 ] )
 
-  renderer = BWCNC::SVG.new
-  BWCNC::SVG::moveto_color = parms[:moveto_color]
-  BWCNC::SVG::lineto_color = parms[:lineto_color]
-  BWCNC::SVG::stroke_width = parms[:stroke_width]
+  if ! parms[:gcode]
+    renderer = BWCNC::SVG.new
+    BWCNC::SVG::moveto_color = parms[:moveto_color]
+    BWCNC::SVG::lineto_color = parms[:lineto_color]
+    BWCNC::SVG::stroke_width = parms[:stroke_width]
+  else
+    renderer = BWCNC::GCode.new
+  end
+
   renderer.render_all( k )
 
 end #main
