@@ -7,12 +7,12 @@
 #include <Eigen/Dense>
 
 
-#include <part.h>
-#include <mceschliz.h>
-#include <bwcnc.h>
+#include <libbwcnc/part.h>
+#include <libbwcnc/mceschliz.h>
+#include <libbwcnc/bwcnc.h>
+#include <libbwcnc/stdtforms.h>
 
 #include "mainwindow.h"
-#include "stdtforms.h"
 
 //using namespace BWCNC;
 
@@ -223,7 +223,7 @@ void mainwindow::refresh_hexgrid()
     shift2center_z( k );
 
     QImage img( scene->sceneRect().width(), scene->sceneRect().height(), QImage::Format_RGB32 );
-    PixmapRenderer renderer( &img );
+    BWCNC::PixmapRenderer renderer( &img );
     renderer.renderonly_positive_z = p_bool;
 
     renderer.set_moveto_color( parms.moveto_clr );
@@ -312,7 +312,7 @@ void mainwindow::refresh_hexgrid()
     //shift2center_z( k );
 
     QImage img( scene->sceneRect().width(), scene->sceneRect().height(), QImage::Format_RGB32 );
-    PixmapRenderer renderer( &img );
+    BWCNC::PixmapRenderer renderer( &img );
     renderer.renderonly_positive_z = p_bool;
 
     renderer.set_moveto_color( parms.moveto_clr );

@@ -4,9 +4,10 @@
 #include <QImage>
 #include <QPainter>
 
-#include <bwcnc.h>
+#include "renderer.h"
 
-//using namespace BWCNC;
+namespace BWCNC
+{
 
 class PixmapRenderer : public BWCNC::GraphicalRenderer
 {
@@ -32,5 +33,6 @@ protected:
     virtual void print_end() { p.end(); }
 };
 
+};
 
 #endif /* ifdef PIXMAPRENDERER_H__ */

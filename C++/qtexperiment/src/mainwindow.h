@@ -7,7 +7,8 @@
 #include <QGraphicsView>
 #include <QGraphicsPixmapItem>
 #include <QTimer>
-#include "qpixmaprenderer.h"
+#include <libbwcnc/qpixmaprenderer.h>
+#include <libbwcnc/part.h>
 
 namespace Ui {
 class mainwindow;
@@ -51,7 +52,7 @@ protected:
     int b_value = 500;
     bool p_bool = false;
     bool b_cmd = false;
-    PixmapRenderer hexes;
+    BWCNC::PixmapRenderer hexes;
 
     BWCNC::PartContext kontext;
     bool kontext_isready = false;

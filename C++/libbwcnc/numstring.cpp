@@ -13,7 +13,7 @@ uint8_t BWCNC::NumString::precision = 3;
 std::string BWCNC::NumString::str()
 {
     std::stringstream ss;
-    ss << ( terse ? std::defaultfloat : std::fixed );
+    if( ! terse ) ss << std::fixed;
     ss << std::setprecision( precision );
     ss << value;
     return ss.str();

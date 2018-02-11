@@ -6,10 +6,10 @@
 
 #include <Eigen/Dense>
 
-#include <bwcnc.h>
+#include <libbwcnc/bwcnc.h>
+#include <libbwcnc/stdtforms.h>
 
 #include "mainwindow.h"
-#include "stdtforms.h"
 
 //using namespace BWCNC;
 
@@ -333,7 +333,7 @@ void mainwindow::refresh_hexgrid_cylinder()
     }
 
     QImage img( scene->sceneRect().width(), scene->sceneRect().height(), QImage::Format_RGB32 );
-    PixmapRenderer renderer( &img );
+    BWCNC::PixmapRenderer renderer( &img );
     renderer.renderonly_positive_z = p_bool;
 
     renderer.set_moveto_color( parms.moveto_clr );

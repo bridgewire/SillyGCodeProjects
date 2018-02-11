@@ -14,7 +14,14 @@ public:
     virtual ~crosshatchwaves(){}
 
     const Eigen::Matrix3d mvf( const Eigen::Vector3d &   ) { return Eigen::Matrix3d::Identity(); }
-    const Eigen::Vector3d vvf( const Eigen::Vector3d & v ) { return shiftscale * Eigen::Vector3d( ::sin(w*(v[1]+ticks)), ::sin(w*(v[0]+ticks)), 0 ); }
+    const Eigen::Vector3d vvf( const Eigen::Vector3d & v )
+    {
+        return shiftscale * Eigen::Vector3d(
+                ::sin(w*(v[1]+ticks)),
+                ::sin(w*(v[0]+ticks)),
+                ::sin(w*(v[1]+ticks)) + ::sin(w*(v[0]+ticks)) // the z transform will not be apparent unless specifically used
+            );
+    }
 };
 
 

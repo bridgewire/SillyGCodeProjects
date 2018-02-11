@@ -18,19 +18,17 @@ SRCPATH = $$PWD/src
 LIBBWCNC_SRCPATH = $$PWD/../libbwcnc
 
 INCLUDEPATH += /usr/include/eigen3 \
-               $$LIBBWCNC_SRCPATH
+               $$PWD/..
+
+#               $$LIBBWCNC_SRCPATH
 
 SOURCES +=  $$SRCPATH/main.cpp \
             $$SRCPATH/mainwindow.cpp \
-            $$SRCPATH/qpixmaprenderer.cpp \
             $$SRCPATH/mainwindowhexgrid.cpp \
             $$SRCPATH/xhatchwaves.cpp \
             $$SRCPATH/cylinder.cpp
 
-
-HEADERS  += $$SRCPATH/mainwindow.h \
-            $$SRCPATH/qpixmaprenderer.h \
-            $$SRCPATH/stdtforms.h
+HEADERS  += $$SRCPATH/mainwindow.h
 
 
 SOURCES +=  $$LIBBWCNC_SRCPATH/boundingbox.cpp \
@@ -41,7 +39,8 @@ SOURCES +=  $$LIBBWCNC_SRCPATH/boundingbox.cpp \
             $$LIBBWCNC_SRCPATH/mceschliz.cpp \
             $$LIBBWCNC_SRCPATH/numstring.cpp \
             $$LIBBWCNC_SRCPATH/part.cpp \
-            $$LIBBWCNC_SRCPATH/renderer.cpp
+            $$LIBBWCNC_SRCPATH/renderer.cpp \
+            $$LIBBWCNC_SRCPATH/qpixmaprenderer.cpp
 
 HEADERS  += $$LIBBWCNC_SRCPATH/boundingbox.h \
             $$LIBBWCNC_SRCPATH/color.h \
@@ -52,6 +51,8 @@ HEADERS  += $$LIBBWCNC_SRCPATH/boundingbox.h \
             $$LIBBWCNC_SRCPATH/numstring.h \
             $$LIBBWCNC_SRCPATH/part.h \
             $$LIBBWCNC_SRCPATH/renderer.h \
+            $$LIBBWCNC_SRCPATH/qpixmaprenderer.h \
+            $$LIBBWCNC_SRCPATH/stdtforms.h \
             $$LIBBWCNC_SRCPATH/bwcnc.h
 
 FORMS    += src/mainwindow.ui

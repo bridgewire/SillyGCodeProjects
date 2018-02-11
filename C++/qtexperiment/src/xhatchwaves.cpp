@@ -6,10 +6,10 @@
 
 #include <Eigen/Dense>
 
-#include <bwcnc.h>
+#include <libbwcnc/bwcnc.h>
+#include <libbwcnc/stdtforms.h>
 
 #include "mainwindow.h"
-#include "stdtforms.h"
 
 //using namespace BWCNC;
 
@@ -47,7 +47,7 @@ static struct cmdline_params {
     .1, .4, .4
 };
 
-#define DO2PARTCONTEXTS 1
+#define DO2PARTCONTEXTS 0
 
 
 void mainwindow::refresh_hexgrid_xhatchwaves()
@@ -96,7 +96,7 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
                 scene->sceneRect().height(),
                 QImage::Format_RGB32 );
 
-    PixmapRenderer renderer( &img );
+    BWCNC::PixmapRenderer renderer( &img );
 
     grid.set_renderer_colors( & renderer );
     renderer.render_all( k );

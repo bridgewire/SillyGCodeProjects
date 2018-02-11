@@ -5,7 +5,7 @@
 #include <list>
 #include <iostream>
 #include "boundingbox.h"
-//#include "part.h"
+#include "color.h"
 
 namespace BWCNC {
 

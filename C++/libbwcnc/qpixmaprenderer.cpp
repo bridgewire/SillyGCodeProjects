@@ -1,6 +1,7 @@
+#include "command.h"
 #include "qpixmaprenderer.h"
 
-void PixmapRenderer::drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr )
+void BWCNC::PixmapRenderer::drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr )
 {
     if( ! clr ) return;
     if( renderonly_positive_z && (cmd->begin[2] < 0 || cmd->end[2] < 0) ) return;
@@ -18,7 +19,7 @@ void PixmapRenderer::drawline( const BWCNC::Command * cmd, const BWCNC::Color & 
     }
 }
 
-void PixmapRenderer::print_start( const BWCNC::Boundingbox & )
+void BWCNC::PixmapRenderer::print_start( const BWCNC::Boundingbox & )
 {
   //debug_countdown = 5;
 

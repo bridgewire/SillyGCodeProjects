@@ -7,3 +7,4 @@
 #include "renderer.h"
 #include "hexgrid.h"
 #include "mceschliz.h"
+#include "qpixmaprenderer.h"
