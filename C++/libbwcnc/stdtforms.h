@@ -24,7 +24,6 @@ public:
     }
 };
 
-
 #if 0
 const Eigen::Vector3d crosshatchwaves::vvf( const Eigen::Vector3d & v )
 {

@@ -6,6 +6,7 @@
 void BWCNC::Part::remake_boundingbox()
 {
 //  Boundingbox newbbox( start, curpos );
+//  Boundingbox newbbox( start );
     Boundingbox newbbox;
     for( auto cmd : cmds )
     {
@@ -212,7 +213,7 @@ void BWCNC::Part::rotate( double angle, bool degrees /* = false */, int rotation
     // short and long names for  position_dependent_transform
 void BWCNC::Part::pos_dep_tform( mvf_t mvf, vvf_t vvf )
 {
-    bbox.pos_dep_tform( mvf, vvf );
+    //bbox.pos_dep_tform( mvf, vvf );
 
     BWCNC::pos_dep_tform( mvf, vvf, start );
     BWCNC::pos_dep_tform( mvf, vvf, curpos );
@@ -220,12 +221,19 @@ void BWCNC::Part::pos_dep_tform( mvf_t mvf, vvf_t vvf )
     for( auto cmd : cmds )
         if( cmd )
             cmd->pos_dep_tform( mvf, vvf );
+
+    // position-dependent transforms aren't linear, which is to say that they
+    // can strech and deform the part so strangely that points which were
+    // internal become external and thus become part of the new edge. because
+    // of this, the bounding box must be remade entirely after every pdt
+    // use linear transforms whenever possible. they're much faster.
+    remake_boundingbox();
 }
 
     // short and long names for  position_dependent_transform
 void BWCNC::Part::pos_dep_tform( pdt_t * tform )
 {
-    bbox.pos_dep_tform( tform );
+    //bbox.pos_dep_tform( tform );
 
     BWCNC::pos_dep_tform( tform, start );
     BWCNC::pos_dep_tform( tform, curpos );
@@ -233,9 +241,14 @@ void BWCNC::Part::pos_dep_tform( pdt_t * tform )
     for( auto cmd : cmds )
         if( cmd )
             cmd->pos_dep_tform( tform );
+
+    // position-dependent transforms aren't linear, which is to say that they
+    // can strech and deform the part so strangely that points which were
+    // internal become external and thus become part of the new edge. because
+    // of this, the bounding box must be remade entirely after every pdt.
+    // use linear transforms whenever possible. they're much faster.
+    remake_boundingbox();
 }
-
-
 
 
 
@@ -264,7 +277,7 @@ void BWCNC::PartContext::rotate( double angle, bool degrees /* = false */, int r
 }
 
 
-void BWCNC::PartContext::reposition( const Eigen::Vector3d & pos )
+void BWCNC::PartContext::reposition( const Eigen::Vector3d & pos, Eigen::Vector3d * offset_sum )
 {
     bool doit = false;
     for( int i = 0; ! doit && i < 3; i++ )
@@ -273,6 +286,8 @@ void BWCNC::PartContext::reposition( const Eigen::Vector3d & pos )
     if( doit )
     {
         Eigen::Vector3d offset = (pos - bbox.min);
+
+        if( offset_sum ) *offset_sum += offset;
 
         bbox.translate( offset );
 
@@ -292,6 +307,17 @@ void BWCNC::PartContext::remake_boundingbox()
             if( prt ) prt->remake_boundingbox();
             bbox.union_with( prt->bbox );
         }
+    }
+}
+
+// this is a little quicker than remake_boundingbox()
+void BWCNC::PartContext::reunion_boundingbox()
+{
+    if( partscnt > 0 )
+    {
+        bbox = Boundingbox();
+        for( auto prt : partlist )
+            bbox.union_with( prt->bbox );
     }
 }
 
@@ -335,5 +361,28 @@ void BWCNC::PartContext::append_part_list( std::list<BWCNC::Part *> parts )
 void BWCNC::PartContext::append_part_list( std::vector<BWCNC::Part *> parts )
 {
     for( auto p : parts ) append_part( p );
+}
+
+
+void BWCNC::shift2( BWCNC::PartContext & k, shift2_t x_st, shift2_t y_st, shift2_t z_st, Eigen::Vector3d * offset_sum )
+{
+    BWCNC::Boundingbox bbox = k.get_bbox();
+    Eigen::Vector3d min = bbox.min;
+    Eigen::Vector3d max = bbox.max;
+    Eigen::Vector3d shiftv;
+
+    shift2_t dirs[3] = {x_st, y_st, z_st};
+
+    for( int i = 0; i < 3; i++ )
+    {
+        switch(dirs[i])
+        {
+        case to_center:   shiftv[i] = -fabs(max[0] - min[0])/2.0; break;
+        case to_positive: shiftv[i] =  0;                         break;
+        default: break;
+        }
+    }
+
+    k.reposition( shiftv, offset_sum );
 }
 

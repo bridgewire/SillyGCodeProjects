@@ -4,8 +4,8 @@
 #include <stdio.h>
 #include <list>
 #include <iostream>
-#include "boundingbox.h"
 #include "color.h"
+#include "boundingbox.h"
 
 namespace BWCNC {
 

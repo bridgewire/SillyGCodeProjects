@@ -64,7 +64,7 @@ void BWCNC::SVG::drawarc( const BWCNC::Command & cmd, const BWCNC::Color & clr )
 
 void BWCNC::SVG::drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr )
 {
-    if( ! bool(moveto_color) ) return;
+    if( ! bool(lineto_color) ) return;
 
     std::vector<BWCNC::NumString> begp = VectorToNumStringArray( (cmd->begin + offset) * scalar );
     std::vector<BWCNC::NumString> endp = VectorToNumStringArray( (cmd->end   + offset) * scalar );

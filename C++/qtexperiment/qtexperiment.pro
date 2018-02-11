@@ -7,6 +7,10 @@
 QT       += core gui
 CONFIG   += c++11
 
+# profiler
+#QMAKE_CXXFLAGS_DEBUG += -pg
+#QMAKE_LFLAGS_DEBUG += -pg
+
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = qtcreatortest

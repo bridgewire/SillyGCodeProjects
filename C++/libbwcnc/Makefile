@@ -18,7 +18,7 @@ TARGET	= printhexgrid color-unittest
 all: $(TARGET)
 
 printhexgrid: boundingbox.o color.o command.o functions.o hexgrid-unittest.o numstring.o part.o renderer.o
-	$(LINK) $(LFLAGS) -o $@ $? $(LIBS)
+	$(LINK) $(LFLAGS) -o $@ $^ $(LIBS)
 
 hexgrid-unittest.o: hexgrid.cpp
 	$(CXX) -DHEXGRID_UNITTEST -c $(CXXFLAGS) $(INCPATH) -o $@ $<

@@ -183,7 +183,7 @@ struct cmdline_params {
     .2, 60, 0, 0,
     true,
     nullptr,     // "#0000FF",
-    "#FF0000"
+    "#ff0000"
 };
 
 
@@ -229,27 +229,10 @@ static bool handle_params( int argc, char ** argv )
     return true;
 }
 
-static void shift2center( BWCNC::PartContext & k )
-{
-    BWCNC::Boundingbox bbox = k.get_bbox();
-    Eigen::Vector3d min = bbox.min;
-    Eigen::Vector3d max = bbox.max;
-    k.translate( Eigen::Vector3d( -fabs(max[0] - min[0])/2.0, -fabs(max[1] - min[1])/2.0, 0 ) );
-}
-
-static void shift2positive( BWCNC::PartContext & k )
-{
-    BWCNC::Boundingbox bbox = k.get_bbox();
-    Eigen::Vector3d min = bbox.min;
-    k.translate( Eigen::Vector3d(-min[0], -min[1], -min[2]) );
-}
-
 int main( int argc, char ** argv )
 {
+    Eigen::Vector3d shift_hist;
     BWCNC::PartContext k;
-    BWCNC::PartContext kcopy;
-  //BWCNC::Boundingbox bbox;
-  //Eigen::Vector3d min, max;
 
     if( handle_params( argc, argv ) )
     {
@@ -257,39 +240,23 @@ int main( int argc, char ** argv )
                              parms.nested, parms.nested_spacing, ! parms.suppress_grid );
 
         grid.fill_partctx_with_grid( k );
-        k.remake_boundingbox();
+        //k.remake_boundingbox();
 
-        shift2center( k );
+        shift2center( k, &shift_hist );
 
         k.position_dependent_transform( skew_tform, shift_tform );
-        //k.position_dependent_transform( skew_tform, nullptr );
-        //k.position_dependent_transform( nullptr, shift_tform );
-        k.remake_boundingbox();
-
-        shift2positive( k );
+        //k.remake_boundingbox();
 
         k.scale( parms.scale );
 
+        k.position_dependent_transform( rotation_tform, nullptr );
+        //k.remake_boundingbox();
+        undo_shift2( k, shift_hist );
+
         BWCNC::SVG renderer;
-        //renderer.set_moveto_color( parms.moveto_clr );
-        //renderer.set_lineto_color( parms.lineto_clr );
-
-        k.copy_into( kcopy );
-        //shift2center( kcopy );
-      //kcopy.position_dependent_transform( skew_tform, shift_tform );
-//        kcopy.scale( .1 );
-        kcopy.remake_boundingbox();
-        shift2center( kcopy );
-        kcopy.position_dependent_transform( rotation_tform, nullptr );
-        kcopy.remake_boundingbox();
-        shift2positive( kcopy );
-        kcopy.remake_boundingbox();
-
-        //renderer.render_all( k );
-
-        BWCNC::SVG renderer2;
-        kcopy.remake_boundingbox();
-        renderer2.render_all( kcopy );
+        renderer.set_moveto_color( parms.moveto_clr );
+        renderer.set_lineto_color( parms.lineto_clr );
+        renderer.render_all( k );
     }
 
     return 0;

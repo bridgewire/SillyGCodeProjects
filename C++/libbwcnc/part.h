@@ -134,20 +134,21 @@ public:
     void append_part_list( std::list<BWCNC::Part *> parts );
     void append_part_list( std::vector<BWCNC::Part *> parts );
 
-    virtual void reposition( const Eigen::Vector3d & pos );
+    virtual void reposition( const Eigen::Vector3d & pos, Eigen::Vector3d * offset_sum = nullptr );
     virtual void translate(  const Eigen::Vector3d & pos ) { bbox.translate( pos ); for( auto prt : partlist ) if( prt ) prt->translate( pos ); }
     virtual void transform(  const Eigen::Matrix3d & mat ) { bbox.transform( mat ); for( auto prt : partlist ) if( prt ) prt->transform( mat ); }
     virtual void scale( const double scalar ) { bbox.scale(scalar); for( auto prt : partlist ) if( prt ) prt->scale( scalar ); }
     virtual void rotate( double angle, bool degrees = false, int rotationaxis = 3 );
 
     // short and long names for  position_dependent_transform
-    virtual void pos_dep_tform( mvf_t mvf, vvf_t vvf ) { bbox.pos_dep_tform( mvf, vvf ); for( auto prt : partlist ) if( prt ) prt->pos_dep_tform( mvf, vvf ); }
-    virtual void pos_dep_tform( pdt_t * tform )        { bbox.pos_dep_tform( tform );    for( auto prt : partlist ) if( prt ) prt->pos_dep_tform( tform ); }
+    virtual void pos_dep_tform( mvf_t mvf, vvf_t vvf ) { for( auto prt : partlist ) if( prt ) prt->pos_dep_tform( mvf, vvf ); reunion_boundingbox(); }
+    virtual void pos_dep_tform( pdt_t * tform )        { for( auto prt : partlist ) if( prt ) prt->pos_dep_tform( tform );    reunion_boundingbox(); }
 
     virtual void position_dependent_transform( mvf_t mvf, vvf_t vvf ) { pos_dep_tform( mvf, vvf ); }
     virtual void position_dependent_transform( pdt_t * tform )        { pos_dep_tform( tform ); }
 
-    virtual void remake_boundingbox();
+    virtual void remake_boundingbox();  // this forces all parts to also remake their bounding boxes
+    virtual void reunion_boundingbox(); // this assumes that all part bboxs are correct, and remakes using a union of parts
 
     virtual void get_current_position( Eigen::Vector3d & v ) { v = last_coords(); }
     virtual void get_current_position( double & x, double & y, double & z )
@@ -180,6 +181,17 @@ protected:
     Eigen::Vector3d firstpoint;
     bool isnil;
 };
+
+typedef enum {
+    to_none,
+    to_center,
+    to_positive
+} shift2_t ;
+
+void shift2( BWCNC::PartContext & k, shift2_t x_st, shift2_t y_st, shift2_t z_st, Eigen::Vector3d * offset_sum = nullptr );
+inline void shift2center(   BWCNC::PartContext & k, Eigen::Vector3d * offset_sum = nullptr ) { shift2( k, to_center,   to_center,   to_center,   offset_sum ); }
+inline void shift2positive( BWCNC::PartContext & k, Eigen::Vector3d * offset_sum = nullptr ) { shift2( k, to_positive, to_positive, to_positive, offset_sum ); }
+inline void undo_shift2( BWCNC::PartContext & k, const Eigen::Vector3d & offset_sum ) { k.reposition( -offset_sum ); }
 
 };
 
