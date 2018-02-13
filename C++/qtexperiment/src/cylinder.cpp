@@ -216,37 +216,6 @@ const Eigen::Vector3d mkdisk::vvf( const Eigen::Vector3d & v )
     return  r * Eigen::Vector3d( ::cos(t), ::sin(t), 0 ) - Eigen::Vector3d( v[0], v[1], 0 );
 }
 
-typedef enum {
-    to_none,
-    to_center,
-    to_positive
-} shift2_t ;
-
-static void shift2( BWCNC::PartContext & k, shift2_t x_st, shift2_t y_st, shift2_t z_st )
-{
-    BWCNC::Boundingbox bbox = k.get_bbox();
-    Eigen::Vector3d min = bbox.min;
-    Eigen::Vector3d max = bbox.max;
-
-    Eigen::Vector3d shiftv = min; // do nothing by default
-
-    shift2_t dirs[3] = {x_st, y_st, z_st};
-
-    for( int i = 0; i < 3; i++ )
-    {
-        switch(dirs[i])
-        {
-        case to_center:   shiftv[i] = -fabs(max[0] - min[0])/2.0; break;
-        case to_positive: shiftv[i] =  0;                         break;
-        default: break;
-        }
-    }
-
-    k.reposition( shiftv );
-}
-
-static void shift2center(   BWCNC::PartContext & k ) { shift2( k, to_center,   to_center,   to_center ); }
-//static void shift2positive( BWCNC::PartContext & k ) { shift2( k, to_positive, to_positive, to_positive ); }
 
 void mainwindow::create_hexgrid_cylinder()
 {
@@ -263,7 +232,6 @@ void mainwindow::create_hexgrid_cylinder()
     grid.fill_partctx_with_grid( kontext );
 
     kontext.scale( parms.scale );
-    kontext.remake_boundingbox();
 
     shift2center(kontext);
 
@@ -271,7 +239,6 @@ void mainwindow::create_hexgrid_cylinder()
   //skew_X skew(1/30.0);
     skew_X skew(1/15.0);
     kontext.position_dependent_transform( &skew );
-    kontext.remake_boundingbox();
 #endif
 
     BWCNC::Boundingbox bbox = kontext.get_bbox();
@@ -281,7 +248,6 @@ void mainwindow::create_hexgrid_cylinder()
   //cyltform.x_max = bbox.max[0] * 0.998;  // 0.98:3cols  ::  
 
     kontext.position_dependent_transform( &cyltform );
-    kontext.remake_boundingbox();
 
     shift2center( kontext );
 
@@ -294,37 +260,31 @@ void mainwindow::create_hexgrid_cylinder()
 
 void mainwindow::refresh_hexgrid_cylinder()
 {
-  //static const Eigen::Vector3d offset(5,5,0);
+    static Eigen::Vector3d dmy_v;                         // this vector isn't used. see rotationY::mvf
     BWCNC::PartContext k;
 
-    if( ! kontext_isready )
-        create_hexgrid_cylinder();
+    if( ! kontext_isready )                               // when this function first runs, create a grid and make
+        create_hexgrid_cylinder();                        // a cylinder out of it. reuse on following refreshes.
 
-    rotationY rotY( M_PI * (a_value - 500)/50000.0 );
+    rotationY rotY( M_PI * (a_value - 500)/50000.0 );     // rotate the cylinder around its cental axis every refresh
+                                                          // this transform works on the perminantly stored kontext
+    kontext.transform( rotY.mvf( dmy_v ) );               // rotY.mvf() returns a rotation matrix
 
-    //const Eigen::Matrix3d mvf( const Eigen::Vector3d & ) { Eigen::Matrix3d mat; mat << ::cos(t), 0, -::sin(t),   0, 1, 0,   ::sin(t), 0, ::cos(t); return mat; }
-  //const Eigen::Matrix3d mat = rotY.mvf( Eigen::Vector3d(0,0,0) );
-  //std::cerr << mat;
-    kontext.transform( rotY.mvf( Eigen::Vector3d(0,0,0) ) );
+    kontext.copy_into( k );                               // now, make a copy of kontext into k so further transforms
+                                                          // can be thrown out between refreshes
 
-    kontext.copy_into( k );
-    k.remake_boundingbox();
 #if 1
-    //shift2center(k,false,true,true);
-    shift2(k, to_positive, to_center, to_center);
-#if 1
-    mkdisk disktform;
-    k.translate( Eigen::Vector3d(50,0,0) );
-    k.remake_boundingbox();
-    BWCNC::Boundingbox bbox = k.get_bbox();
-    //disktform.y_max = .65 * bbox.max[1];
-    disktform.y_max = .508 * bbox.max[1];
+    shift2(k, BWCNC::to_positive,
+              BWCNC::to_center,
+              BWCNC::to_center);
+    mkdisk disktform;                                     // now, take the cylinder and apply the disk transform
+    k.translate( Eigen::Vector3d(50,0,0) );               // in order to create a torus. this means our function
+    BWCNC::Boundingbox bbox = k.get_bbox();               // name is a lie. this is an experiment. making a disk,
+    disktform.y_max = /* .65 */ .508 * bbox.max[1];       // a cylinder, and a torus will be standard transforms.
     k.position_dependent_transform( &disktform );
-    k.remake_boundingbox();
     k.scale( 10*(b_value/1000.0)  );
 #endif
-#endif
-    shift2(k, to_positive, to_positive, to_center);
+    shift2(k, BWCNC::to_positive, BWCNC::to_positive, BWCNC::to_center);
 
     if( b_cmd )
     {
@@ -340,20 +300,7 @@ void mainwindow::refresh_hexgrid_cylinder()
     renderer.set_lineto_color( parms.lineto_clr );
     renderer.set_backgd_color( parms.backgd_clr );
 
-#if 0
-    k.scale( parms.scale );
-
-    BWCNC::SVG svgrenderer;
-    svgrenderer.render_all( k );
-
-    renderer.set_backgd_color( nullptr );
-    renderer.set_lineto_color( "#ff0000" );
-    renderer.render_all( k2 );
-#endif
-
     renderer.render_all( k );
-  //renderer.render_all( kontext );
-
 
     QPixmap pxmp;
     if( pxmp.convertFromImage( img ) )

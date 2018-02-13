@@ -61,6 +61,17 @@ void BWCNC::SVG::drawarc( const BWCNC::Command & cmd, const BWCNC::Color & clr )
 }
 #endif
 
+void BWCNC::SVG::draw_dot( const BWCNC::Command * cmd, const BWCNC::Color & clr )
+{
+    if( ! bool(lineto_color) ) return;
+
+    std::vector<BWCNC::NumString> begp = VectorToNumStringArray( (cmd->begin + offset) * scalar );
+    std::vector<BWCNC::NumString> endp = VectorToNumStringArray( (cmd->end   + offset) * scalar );
+
+    printf( "<circle cx=\"%s\" cy=\"%s\" r=\"1\" fill=\"#%06x\" />\n",
+            begp[0].str().c_str(), begp[1].str().c_str(), clr.to_rgb24() );
+}
+
 
 void BWCNC::SVG::drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr )
 {

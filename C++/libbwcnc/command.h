@@ -71,7 +71,7 @@ public:
 protected:
     virtual void begindflt() { begin = Eigen::Vector3d(0,0,0); }
     virtual void endflt()    { end = begin; }
-    virtual void clrdflt()   { clr = BWCNC::Color( (uint32_t)0x000000 ); }
+    virtual void clrdflt()   { clr = BWCNC::Color(); /* BWCNC::Color( 0x000000 ); */ }
 
 public:
     Eigen::Vector3d begin;
@@ -110,6 +110,23 @@ public:
 
     virtual Move * new_copy() const { Move * nm = new Move; *nm = *this; return nm; }
 };
+
+class Dot : public Command
+{
+public:
+    Dot(){}
+
+    Dot( const Eigen::Vector3d & a ) : Command( a, a ) {}
+    Dot( const Eigen::Vector3d & a, const BWCNC::Color & c ) : Command( a, a, c ) {}
+
+    Dot( const Eigen::Vector2d & a )                         : Command( a, a ) {}
+    Dot( const Eigen::Vector2d & a, const BWCNC::Color & c ) : Command( a, a, c ) {}
+
+    virtual void render( BWCNC::Renderer * r ){ r->dot_at( this ); }
+
+    virtual Dot * new_copy() const { Dot * nd = new Dot; *nd = *this; return nd; }
+};
+
 
 };
 

@@ -64,7 +64,19 @@ public:
     Eigen::Vector3d max;
     bool isnil;
     bool haspoint;
+
+    BWCNC::Boundingbox subtract( const BWCNC::Boundingbox & other ) const
+    {
+        Boundingbox b;
+        b.min = min - other.min;
+        b.max = max - other.max;
+        b.isnil = isnil && other.isnil;
+        b.isnil = haspoint || other.haspoint ;
+        return b;
+    }
 };
+
+inline BWCNC::Boundingbox operator-( const BWCNC::Boundingbox & lha, const BWCNC::Boundingbox & rha ) { return lha.subtract(rha); }
 
 };
 

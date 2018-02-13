@@ -27,6 +27,7 @@ protected:
 
 protected:
     virtual void drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr ) ;
+    virtual void draw_dot( const BWCNC::Command * cmd, const BWCNC::Color & clr ) ;
   //virtual void drawarc(  const BWCNC::Command * cmd, const BWCNC::Color & clr ) ;
 
     virtual void print_start( const BWCNC::Boundingbox & );

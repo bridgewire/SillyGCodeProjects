@@ -19,6 +19,26 @@ void BWCNC::PixmapRenderer::drawline( const BWCNC::Command * cmd, const BWCNC::C
     }
 }
 
+void BWCNC::PixmapRenderer::draw_dot( const BWCNC::Command * cmd, const BWCNC::Color & clr )
+{
+    if( ! clr ) return;
+    if( renderonly_positive_z && cmd->begin[2] < 0 ) return;
+
+    pen.setColor( QColor(clr.to_rgb24()) );
+    p.setPen( pen );
+    p.drawEllipse( QPoint(cmd->begin[0], cmd->begin[1]), 1, 1 );
+
+    if( debug_countdown > 0 )
+    {
+        printf( "%d:(%f,%f,%f)\n", debug_countdown, cmd->begin[0], cmd->begin[1], cmd->begin[2] );
+        debug_countdown--;
+        if( debug_countdown <= 0 )
+            printf( "\n" );
+    }
+}
+
+
+
 void BWCNC::PixmapRenderer::print_start( const BWCNC::Boundingbox & )
 {
   //debug_countdown = 5;

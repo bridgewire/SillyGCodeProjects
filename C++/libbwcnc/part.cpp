@@ -31,6 +31,7 @@ void BWCNC::Part::copy_into( Part & p )
     p.isclosed = isclosed;
     p.moveto_cnt = moveto_cnt;
     p.lineto_cnt = lineto_cnt;
+    p.dot_at_cnt = dot_at_cnt;
     p.bbox       = bbox;
     p.start      = start;
     p.curpos     = curpos;
@@ -64,6 +65,7 @@ void BWCNC::Part::pull_commands_from( BWCNC::Part * p )
 
     moveto_cnt += p->moveto_cnt;
     lineto_cnt += p->lineto_cnt;
+    dot_at_cnt += p->dot_at_cnt;
 }
 
 void BWCNC::Part::update_bounds( const Eigen::Vector3d & newpoint )
@@ -73,7 +75,7 @@ void BWCNC::Part::update_bounds( const Eigen::Vector3d & newpoint )
 
 bool BWCNC::Part::update_starting_position( const Eigen::Vector3d & pos )
 {
-    if( lineto_cnt == 0 && moveto_cnt == 0 )
+    if( lineto_cnt == 0 && moveto_cnt == 0 && dot_at_cnt == 0 )
     {
         update_position( pos );
         return true;
@@ -109,6 +111,18 @@ void BWCNC::Part::lineto( const Eigen::Vector3d & to, bool vecfromcur /* = false
     cmds.push_back( new Line( curpos, vec ) );
     update_position( vec );
 }
+
+void BWCNC::Part::dot_at( const Eigen::Vector3d & to, bool vecfromcur /* = false */ ) // default accepts 'to' as relative to origin
+{                                                                                     // vecfromcur adds 'to' to curpos
+    Eigen::Vector3d vec = to;
+    if( vecfromcur )
+        vec += curpos;
+
+    dot_at_cnt++;
+    cmds.push_back( new Dot( vec ) );
+    update_position( vec );
+}
+
 
 void BWCNC::Part::lineto_close( bool & isok )
 {
@@ -170,16 +184,30 @@ void BWCNC::Part::translate(  const Eigen::Vector3d & offst )
             cmd->translate( offst );
 }
  // linear transform
-void BWCNC::Part::transform(  const Eigen::Matrix3d & mat   )
+void BWCNC::Part::transform( const Eigen::Matrix3d & mat, bool remake_bbox )
 {
-    bbox.transform(  mat);
+    Boundingbox newbbox;
 
     start  = mat * start;
     curpos = mat * curpos;
 
     for( auto cmd : cmds )
+    {
         if( cmd )
+        {
             cmd->transform(  mat );
+            if( remake_bbox )
+            {
+                newbbox.update_bounds( cmd->begin );
+                newbbox.update_bounds( cmd->end );
+            }
+        }
+    }
+
+    if( remake_bbox )
+        bbox = newbbox;
+    else
+        bbox.transform( mat );
 }
 void BWCNC::Part::scale( const double scalar )
 {
@@ -190,7 +218,7 @@ void BWCNC::Part::scale( const double scalar )
     start  = mat * start;
     curpos = mat * curpos;
 
-    transform( mat );
+    transform( mat, false );
 }
 
 void BWCNC::Part::rotate( double angle, bool degrees /* = false */, int rotationaxis /* = 3 */ )
@@ -207,7 +235,7 @@ void BWCNC::Part::rotate( double angle, bool degrees /* = false */, int rotation
     default: throw "invalid axis specified";   break;
     }
 
-    transform(mat);
+    transform( mat );
 }
 
     // short and long names for  position_dependent_transform
@@ -259,6 +287,60 @@ void BWCNC::Part::pos_dep_tform( pdt_t * tform )
 /////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////
 
+
+void BWCNC::PartContext::copy_into( PartContext & k )
+{
+    k.partscnt   = partscnt;
+    k.firstpoint = firstpoint;
+    k.bbox       = bbox;
+    k.isnil      = isnil;
+
+    for( auto p : partlist )
+    {
+        if( p )
+        {
+            BWCNC::Part * newp = p->new_copy();
+            k.partlist.push_back( newp );
+            //printf( "just now pushed a part back into a new part-context\n" );
+        }
+    }
+}
+
+void BWCNC::PartContext::translate(  const Eigen::Vector3d & offset )
+{
+    firstpoint += offset;
+    bbox.translate( offset );
+
+    for( auto prt : partlist )
+        if( prt )
+            prt->translate( offset );
+}
+
+void BWCNC::PartContext::transform( const Eigen::Matrix3d & mat, bool update_bbox )
+{
+    firstpoint = mat * firstpoint;
+
+    for( auto prt : partlist )
+        if( prt )
+            prt->transform( mat, update_bbox );
+
+    if( update_bbox )
+        reunion_boundingbox();
+    else
+        bbox.transform( mat );
+}
+
+void BWCNC::PartContext::scale( const double scalar )
+{
+    firstpoint = scalar * firstpoint;
+    bbox.scale( scalar );
+
+    for( auto prt : partlist )
+        if( prt )
+            prt->scale( scalar );
+}
+
+
 void BWCNC::PartContext::rotate( double angle, bool degrees /* = false */, int rotationaxis /* = 3 */ )
 {
     Eigen::Matrix3d mat;
@@ -273,7 +355,26 @@ void BWCNC::PartContext::rotate( double angle, bool degrees /* = false */, int r
     default: throw "invalid axis specified";  break;
     }
 
-    transform(mat);
+    transform( mat );
+}
+
+void BWCNC::PartContext::pos_dep_tform( mvf_t mvf, vvf_t vvf )
+{
+    BWCNC::pos_dep_tform( mvf, vvf, firstpoint );
+    for( auto prt : partlist )
+        if( prt )
+            prt->pos_dep_tform( mvf, vvf );
+    reunion_boundingbox();
+}
+
+
+void BWCNC::PartContext::pos_dep_tform( pdt_t * tform )
+{
+    BWCNC::pos_dep_tform( tform, firstpoint );
+    for( auto prt : partlist )
+        if( prt )
+            prt->pos_dep_tform( tform );
+    reunion_boundingbox();
 }
 
 
@@ -286,14 +387,8 @@ void BWCNC::PartContext::reposition( const Eigen::Vector3d & pos, Eigen::Vector3
     if( doit )
     {
         Eigen::Vector3d offset = (pos - bbox.min);
-
         if( offset_sum ) *offset_sum += offset;
-
-        bbox.translate( offset );
-
-        for( auto prt : partlist )
-            if( prt )
-                prt->translate( offset );
+        translate( offset );
     }
 }
 

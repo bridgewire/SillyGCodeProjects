@@ -22,6 +22,7 @@ public:
 
     virtual void lineto( const BWCNC::Command * cmd ) = 0;
     virtual void moveto( const BWCNC::Command * cmd ) = 0;
+    virtual void dot_at( const BWCNC::Command * cmd ) = 0;
     //virtual void arcto ( const BWCNC::Command * cmd )=0;
 
     virtual void print_start( const BWCNC::Boundingbox & bounds ) = 0;
@@ -33,6 +34,7 @@ public:
     virtual void set_moveto_color( const char * ) {}
     virtual void set_lineto_color( const char * ) {}
     virtual void set_backgd_color( const char * ) {}
+    virtual void set_dot_color( const char * ) {}
 
 protected:
     Eigen::Vector3d offset;
@@ -50,18 +52,22 @@ public:
     virtual void set_moveto_color( const char * spec ) { moveto_color = BWCNC::Color(spec); }
     virtual void set_lineto_color( const char * spec ) { lineto_color = BWCNC::Color(spec); }
     virtual void set_backgd_color( const char * spec ) { backgd_color = BWCNC::Color(spec); }
+    virtual void set_dot_color( const char * spec ) { dot_color = BWCNC::Color(spec); }
 
 protected:
     virtual void lineto( const BWCNC::Command * cmd ) { drawline( cmd, lineto_color ); }
     virtual void moveto( const BWCNC::Command * cmd ) { drawline( cmd, moveto_color ); }
+    virtual void dot_at( const BWCNC::Command * cmd ) { draw_dot( cmd, dot_color ); }
   //virtual void arcto ( const BWCNC::Command * cmd ) { drawarc(  cmd, moveto_color ); }
 
     virtual void drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr ) = 0;
+    virtual void draw_dot( const BWCNC::Command * cmd, const BWCNC::Color & clr ) = 0;
   //virtual void drawarc(  const BWCNC::Command * cmd, const BWCNC::Color & clr );
 
     BWCNC::Color moveto_color = "#0000ff";
     BWCNC::Color lineto_color = "#ff0000";
     BWCNC::Color backgd_color = "#ffffff";
+    BWCNC::Color dot_color;
     int stroke_width = 1;
 };
 
@@ -73,6 +79,7 @@ public:
 
 protected:
     virtual void drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr );
+    virtual void draw_dot( const BWCNC::Command * cmd, const BWCNC::Color & clr );
   //virtual void drawarc(  const BWCNC::Command * cmd, const BWCNC::Color & clr );
 
     virtual void print_start( const BWCNC::Boundingbox & bounds );
