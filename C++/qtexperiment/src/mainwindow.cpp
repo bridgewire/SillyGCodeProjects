@@ -3,13 +3,14 @@
 #include "ui_mainwindow.h"
 
 #include <QGraphicsView>
+#include <QWindow>
 #include <QKeyEvent>
 #include <QPen>
 
 
-void mainwindow::refresh_selected_hexgrid(){ refresh_hexgrid_cylinder(); }
+//void mainwindow::refresh_selected_hexgrid(){ refresh_hexgrid_cylinder(); }
 //void mainwindow::refresh_selected_hexgrid(){ refresh_hexgrid(); }
-//void mainwindow::refresh_selected_hexgrid(){ refresh_hexgrid_xhatchwaves(); }
+void mainwindow::refresh_selected_hexgrid(){ refresh_hexgrid_xhatchwaves(); }
 
 
 void mainwindow::a_slider_changed(int value) { a_value = value; refresh_selected_hexgrid(); }
@@ -105,6 +106,20 @@ void mainwindow::keyPressEvent( QKeyEvent * e )
         break;
     case Qt::Key_B:
         b_cmd = true;
+        break;
+    case Qt::Key_F11:
+        if( is_fullscreenmode )
+        {
+            this->showFullScreen();
+            //ui->graphicsView->showFullScreen();
+        }
+        else
+        {
+            //ui->graphicsView->showNormal();
+            this->showNormal();
+        }
+
+        is_fullscreenmode = ! is_fullscreenmode;
         break;
     }
 }

@@ -31,25 +31,82 @@ static struct cmdline_params {
     const char * backgd_clr;
 
     double tick_size;
-    double scene_width;
-    double scene_height;
 
 } parms = {
+ //120, 75, 1, .2,
   //90, 50, 1, .2,
-    30, 20, 1, .1,
-  //30, 20, 1, .2,
-    1, 20, 0, 0,
-  //1, 30, 0, 0,
+  //30, 20, 1, .1,
+   60, 40, 1, .2,
+    1, 6, 0, 0,
+  //1, 20, 0, 0,
     true,
     nullptr,     // don't show moveto lines
     "#009900",
     "#fe8736",
-    .1, .4, .4
+    .1
 };
 
 #define DO2PARTCONTEXTS 0
 
 
+void mainwindow::create_hexgrid_xhatchwaves()
+{
+    BWCNC::HexGrid grid(
+            parms.cols, parms.rows, parms.sidelength, parms.scale,
+            parms.nested, parms.nested_spacing, ! parms.suppress_grid,
+            Eigen::Vector3d( parms.xshift, parms.yshift, 0),
+            parms.lineto_clr, parms.moveto_clr, parms.backgd_clr );
+
+    grid.fill_partctx_with_grid( kontext );
+}
+
+void mainwindow::refresh_hexgrid_xhatchwaves()
+{
+    static bool kontext_is_ready = false;
+    if( ! kontext_is_ready )
+    {
+        kontext_is_ready = true;
+        create_hexgrid_xhatchwaves();
+    }
+
+    crosshatchwaves chw_tform;
+
+    chw_tform.ticks       = ticks * parms.tick_size;
+    chw_tform.shiftscale  = (b_value - 499)/50.0;
+    chw_tform.w           = (a_value - 499)/(M_PI * 100);
+
+    double scene_width  = scene->sceneRect().width();
+    double scene_height = scene->sceneRect().height();
+
+    BWCNC::PartContext k;
+    kontext.copy_into( k );
+
+    // this transform acts periodically over a plane, so no shifting is needed.
+    k.position_dependent_transform( &chw_tform );
+
+    BWCNC::Boundingbox bbox = k.get_bbox();
+    parms.scale = 1.5 * scene_width / bbox.width();
+
+    k.scale( parms.scale );
+
+    QImage img( scene_width, scene_height, QImage::Format_RGB32 );
+
+    BWCNC::PixmapRenderer renderer( &img );
+
+    renderer.set_moveto_color( parms.moveto_clr );
+    renderer.set_lineto_color( parms.lineto_clr );
+    renderer.set_backgd_color( parms.backgd_clr );
+
+    //grid.set_renderer_colors( & renderer );
+    renderer.render_all( k );
+
+    QPixmap pxmp;
+    if( pxmp.convertFromImage( img ) )
+        pixmap_item->setPixmap(pxmp);
+}
+
+
+#if 0
 void mainwindow::refresh_hexgrid_xhatchwaves()
 {
     BWCNC::PartContext k;
@@ -60,7 +117,7 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
     chw_tform.shiftscale  = (b_value - 499)/50.0;
     chw_tform.w           = (a_value - 499)/(M_PI * 100);
 
-#if 0
+#if 1
     BWCNC::HexGrid grid(
             parms.cols, parms.rows, parms.sidelength, parms.scale,
             parms.nested, parms.nested_spacing, ! parms.suppress_grid,
@@ -71,12 +128,9 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
 #endif
 
     grid.fill_partctx_with_grid( k );
-    //k.remake_boundingbox();
 
     parms.scene_width  = scene->sceneRect().width();
     parms.scene_height = scene->sceneRect().height();
-
-    //shift2center(k);
 
 #if DO2PARTCONTEXTS
     BWCNC::PartContext k2;
@@ -111,4 +165,4 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
     if( pxmp.convertFromImage( img ) )
         pixmap_item->setPixmap(pxmp);
 }
-
+#endif
