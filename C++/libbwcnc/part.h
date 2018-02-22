@@ -72,10 +72,12 @@ protected:
     int moveto_cnt; // how many moveto segments are there?
     int lineto_cnt; // how many lineto segments are there?
     int dot_at_cnt; // how many dots are there?
-    std::vector<BWCNC::Command *> cmds;
     BWCNC::Boundingbox bbox;
     Eigen::Vector3d start;
     Eigen::Vector3d curpos;
+
+public:
+    std::vector<BWCNC::Command *> cmds;
 };
 
 class PartContext
@@ -142,10 +144,12 @@ protected:
 
 protected:
     int partscnt;
-    std::vector<BWCNC::Part *> partlist;
     BWCNC::Boundingbox bbox;
     Eigen::Vector3d firstpoint;
     bool isnil;
+
+public:
+    std::vector<BWCNC::Part *> partlist;
 };
 
 typedef enum {

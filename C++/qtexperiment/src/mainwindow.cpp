@@ -22,9 +22,10 @@ mainwindow::mainwindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-    //void QAbstractSlider::valueChanged(int value)
+  //void QAbstractSlider::valueChanged(int value)
 
-    scene = new QGraphicsScene( 0, 0, 1560, 860, this );
+  //scene = new QGraphicsScene( 0, 0, 1560, 860, this );
+    scene = new QGraphicsScene( 0, 0, 2048/2, 1080/2, this );
     ui->graphicsView->setScene( scene ); //QGraphicsView
 
     QPixmap pxmp;
@@ -48,6 +49,8 @@ mainwindow::mainwindow(QWidget *parent)
     ui->b_hSlider->setValue( b_value );
 
     refresh_selected_hexgrid();
+
+    toggle_timer(); // activate timer
 }
 
 mainwindow::~mainwindow()

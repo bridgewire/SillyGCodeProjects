@@ -13,6 +13,9 @@
 
 //using namespace BWCNC;
 
+static int cols = 58;
+static int rows = round(1.13 * cols * 1080 / 2048.0);
+
 
 static struct cmdline_params {
     int cols;
@@ -36,8 +39,18 @@ static struct cmdline_params {
  //120, 75, 1, .2,
   //90, 50, 1, .2,
   //30, 20, 1, .1,
-   60, 40, 1, .2,
-    1, 6, 0, 0,
+  //60, 32, 1, .18,
+
+  //cols, rows, 1, .1,
+  //cols, rows, 1, .18,
+  //cols, rows, 1, .25,
+  //cols, rows, 1, .5,
+  //cols, rows, 1, .7,
+    cols, rows, 1, .8,
+  //cols, rows, 1, .9,
+
+  //20, 20, 1, .2,
+    1, 10, 0, 0,
   //1, 20, 0, 0,
     true,
     nullptr,     // don't show moveto lines
@@ -83,15 +96,40 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
 
     // this transform acts periodically over a plane, so no shifting is needed.
     k.position_dependent_transform( &chw_tform );
-
+#if 0
     BWCNC::Boundingbox bbox = k.get_bbox();
     parms.scale = 1.5 * scene_width / bbox.width();
-
+#endif
     k.scale( parms.scale );
+
+
+    BWCNC::Boundingbox bbox = k.get_bbox();
+    double range =  bbox.depth();
+    double least =  bbox.min[2];
+
+    for( auto p : k.partlist )
+    {
+        if( p )
+        {
+            for( auto cmd : p->cmds )
+            {
+                if( cmd )
+                {
+                    Eigen::Vector3d avg_v = (cmd->begin + cmd->end) / 2;
+                    int R, G, B;
+                    double multiplier = (least + avg_v[2])/range;
+                    G = R =  128 * multiplier;
+                    B     =  255 * multiplier;
+                    cmd->clr = BWCNC::Color( R, G, B );
+                }
+            }
+        }
+    }
 
     QImage img( scene_width, scene_height, QImage::Format_RGB32 );
 
     BWCNC::PixmapRenderer renderer( &img );
+    renderer.renderonly_positive_z = p_bool;
 
     renderer.set_moveto_color( parms.moveto_clr );
     renderer.set_lineto_color( parms.lineto_clr );

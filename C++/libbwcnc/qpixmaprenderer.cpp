@@ -3,10 +3,11 @@
 
 void BWCNC::PixmapRenderer::drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr )
 {
-    if( ! clr ) return;
+    //if( ! clr ) return;
+    if( ! cmd->clr ) return;
     if( renderonly_positive_z && (cmd->begin[2] < 0 || cmd->end[2] < 0) ) return;
 
-    pen.setColor( QColor(clr.to_rgb24()) );
+    pen.setColor( QColor(cmd->clr.to_rgb24()) );
     p.setPen( pen );
     p.drawLine( cmd->begin[0], cmd->begin[1], cmd->end[0], cmd->end[1] );
 

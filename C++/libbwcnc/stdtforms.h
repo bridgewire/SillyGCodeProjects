@@ -16,11 +16,27 @@ public:
     const Eigen::Matrix3d mvf( const Eigen::Vector3d &   ) { return Eigen::Matrix3d::Identity(); }
     const Eigen::Vector3d vvf( const Eigen::Vector3d & v )
     {
+#if 0
         return shiftscale * Eigen::Vector3d(
                 ::sin(w*(v[1]+ticks)),
-                ::sin(w*(v[0]+ticks)),
-                ::sin(w*(v[1]+ticks)) + ::sin(w*(v[0]+ticks)) // the z transform will not be apparent unless specifically used
+                ::sin(w*(v[0]-ticks)),
+                ::sin(w*(v[1]+ticks)) + ::sin(w*(v[0]-ticks)) // the z transform will not be apparent unless specifically used
             );
+#endif
+        double x, y, z;;
+        x = ::sin( w*(  v[0] * ::sin(ticks/100.0)
+                      + v[1] * ::cos(ticks/100.0)
+                      + ticks
+                     ));
+
+        y = ::sin( w*(  v[1] * ::sin(-ticks/200.0)
+                      + v[0] * ::cos(-ticks/200.0)
+                      + ticks
+                     ));
+
+        z = 10 * (::cos(x*M_PI/2) + ::cos(y*M_PI/2));
+
+        return shiftscale * Eigen::Vector3d( x, y, z );
     }
 };
 

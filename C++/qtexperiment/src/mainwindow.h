@@ -42,15 +42,15 @@ protected:
     bool toggle_timer();
 
 protected:
-    int tmr_interval_msec = 100;
+    int tmr_interval_msec = 10;
     int ticks = 0;
     bool tmr_active = false;
     QTimer tmr;
     QPainter p;
     QGraphicsScene * scene = nullptr;
     QGraphicsPixmapItem * pixmap_item = nullptr;
-    int a_value = 0;
-    int b_value = 500;
+    int a_value = 440;
+    int b_value = 940;
     bool p_bool = false;
     bool b_cmd = false;
     bool is_fullscreenmode = false;
