@@ -5,7 +5,8 @@ void BWCNC::PixmapRenderer::drawline( const BWCNC::Command * cmd, const BWCNC::C
 {
     //if( ! clr ) return;
     if( ! cmd->clr ) return;
-    if( renderonly_positive_z && (cmd->begin[2] < 0 || cmd->end[2] < 0) ) return;
+    if( ! render_positive_z && (cmd->begin[2] > 0 || cmd->end[2] > 0) ) return;
+    if( ! render_negative_z && (cmd->begin[2] < 0 || cmd->end[2] < 0) ) return;
 
     pen.setColor( QColor(cmd->clr.to_rgb24()) );
     p.setPen( pen );
@@ -23,7 +24,8 @@ void BWCNC::PixmapRenderer::drawline( const BWCNC::Command * cmd, const BWCNC::C
 void BWCNC::PixmapRenderer::draw_dot( const BWCNC::Command * cmd, const BWCNC::Color & clr )
 {
     if( ! clr ) return;
-    if( renderonly_positive_z && cmd->begin[2] < 0 ) return;
+    if( ! render_positive_z && cmd->begin[2] > 0 ) return;
+    if( ! render_negative_z && cmd->begin[2] < 0 ) return;
 
     pen.setColor( QColor(clr.to_rgb24()) );
     p.setPen( pen );

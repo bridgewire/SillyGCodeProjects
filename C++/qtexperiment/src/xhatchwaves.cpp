@@ -55,7 +55,7 @@ static struct cmdline_params {
     true,
     nullptr,     // don't show moveto lines
     "#009900",
-    "#fe8736",
+    "#000000", // "#fe8736",
     .1
 };
 
@@ -72,6 +72,8 @@ void mainwindow::create_hexgrid_xhatchwaves()
 
     grid.fill_partctx_with_grid( kontext );
 }
+
+static void paint_z( BWCNC::PartContext & k );
 
 void mainwindow::refresh_hexgrid_xhatchwaves()
 {
@@ -99,10 +101,31 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
 #if 0
     BWCNC::Boundingbox bbox = k.get_bbox();
     parms.scale = 1.5 * scene_width / bbox.width();
-#endif
+#else
     k.scale( parms.scale );
+#endif
+    paint_z( k );
 
+    QImage img( scene_width, scene_height, QImage::Format_RGB32 );
 
+    BWCNC::PixmapRenderer renderer( &img );
+    renderer.render_positive_z = p_bool;
+    renderer.render_negative_z = n_bool;
+
+    renderer.set_moveto_color( parms.moveto_clr );
+    renderer.set_lineto_color( parms.lineto_clr );
+    renderer.set_backgd_color( parms.backgd_clr );
+
+    //grid.set_renderer_colors( & renderer );
+    renderer.render_all( k );
+
+    QPixmap pxmp;
+    if( pxmp.convertFromImage( img ) )
+        pixmap_item->setPixmap(pxmp);
+}
+
+static void paint_z( BWCNC::PartContext & k )
+{
     BWCNC::Boundingbox bbox = k.get_bbox();
     double range =  bbox.depth();
     double least =  bbox.min[2];
@@ -117,7 +140,7 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
                 {
                     Eigen::Vector3d avg_v = (cmd->begin + cmd->end) / 2;
                     int R, G, B;
-                    double multiplier = (least + avg_v[2])/range;
+                    double multiplier = (avg_v[2] - least)/range;
                     G = R =  128 * multiplier;
                     B     =  255 * multiplier;
                     cmd->clr = BWCNC::Color( R, G, B );
@@ -125,23 +148,9 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
             }
         }
     }
-
-    QImage img( scene_width, scene_height, QImage::Format_RGB32 );
-
-    BWCNC::PixmapRenderer renderer( &img );
-    renderer.renderonly_positive_z = p_bool;
-
-    renderer.set_moveto_color( parms.moveto_clr );
-    renderer.set_lineto_color( parms.lineto_clr );
-    renderer.set_backgd_color( parms.backgd_clr );
-
-    //grid.set_renderer_colors( & renderer );
-    renderer.render_all( k );
-
-    QPixmap pxmp;
-    if( pxmp.convertFromImage( img ) )
-        pixmap_item->setPixmap(pxmp);
 }
+
+
 
 
 #if 0

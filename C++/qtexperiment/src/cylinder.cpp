@@ -294,7 +294,8 @@ void mainwindow::refresh_hexgrid_cylinder()
 
     QImage img( scene->sceneRect().width(), scene->sceneRect().height(), QImage::Format_RGB32 );
     BWCNC::PixmapRenderer renderer( &img );
-    renderer.renderonly_positive_z = p_bool;
+    renderer.render_positive_z = p_bool;
+    renderer.render_negative_z = n_bool;
 
     renderer.set_moveto_color( parms.moveto_clr );
     renderer.set_lineto_color( parms.lineto_clr );

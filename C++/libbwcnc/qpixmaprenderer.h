@@ -18,7 +18,8 @@ public:
 
     void set_image( QImage * img ) { im = img; }
     int debug_countdown = 0;
-    bool renderonly_positive_z = false;
+    bool render_positive_z = true;
+    bool render_negative_z = true;
 
 protected:
     QImage * im = nullptr;

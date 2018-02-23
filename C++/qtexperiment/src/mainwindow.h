@@ -49,9 +49,10 @@ protected:
     QPainter p;
     QGraphicsScene * scene = nullptr;
     QGraphicsPixmapItem * pixmap_item = nullptr;
-    int a_value = 440;
-    int b_value = 940;
-    bool p_bool = false;
+    int a_value = 400;
+    int b_value = 600;
+    bool p_bool = true;
+    bool n_bool = true;
     bool b_cmd = false;
     bool is_fullscreenmode = false;
     BWCNC::PixmapRenderer hexes;

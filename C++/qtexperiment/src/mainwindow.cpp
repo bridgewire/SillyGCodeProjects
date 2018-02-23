@@ -107,6 +107,9 @@ void mainwindow::keyPressEvent( QKeyEvent * e )
     case Qt::Key_P:
         p_bool = ! p_bool;
         break;
+    case Qt::Key_N:
+        n_bool = ! n_bool;
+        break;
     case Qt::Key_B:
         b_cmd = true;
         break;
