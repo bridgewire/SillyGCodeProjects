@@ -104,25 +104,26 @@ void mainwindow::keyPressEvent( QKeyEvent * e )
             printf( "tmr_interval_msec: %d\n", tmr_interval_msec );
             tmr.setInterval( tmr_interval_msec );
         }
-    case Qt::Key_P:
-        p_bool = ! p_bool;
-        break;
-    case Qt::Key_N:
-        n_bool = ! n_bool;
-        break;
+    case Qt::Key_R: r_bool = ! r_bool; break;
+    case Qt::Key_L: l_bool = ! l_bool; break;
+    case Qt::Key_P: p_bool = ! p_bool; break;
+    case Qt::Key_N: n_bool = ! n_bool; break;
     case Qt::Key_B:
         b_cmd = true;
         break;
     case Qt::Key_F11:
+        printf( "F11 pressed\n" );
+        setVisible(true);
         if( is_fullscreenmode )
         {
-            this->showFullScreen();
-            //ui->graphicsView->showFullScreen();
+            showMaximized();
+            //showFullScreen();
+            ui->graphicsView->showFullScreen();
         }
         else
         {
-            //ui->graphicsView->showNormal();
-            this->showNormal();
+            ui->graphicsView->showNormal();
+            showNormal();
         }
 
         is_fullscreenmode = ! is_fullscreenmode;

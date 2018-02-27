@@ -63,19 +63,33 @@ void BWCNC::SVG::drawarc( const BWCNC::Command & cmd, const BWCNC::Color & clr )
 
 void BWCNC::SVG::draw_dot( const BWCNC::Command * cmd, const BWCNC::Color & clr )
 {
-    if( ! bool(lineto_color) ) return;
+    BWCNC::Color c = cmd->clr;
+    if( ! bool(cmd->clr) )
+    {
+        if( ! bool(dot_color) )
+            return;
+        c = dot_color;
+    }
+    //if( ! bool(lineto_color) ) return;
 
     std::vector<BWCNC::NumString> begp = VectorToNumStringArray( (cmd->begin + offset) * scalar );
     std::vector<BWCNC::NumString> endp = VectorToNumStringArray( (cmd->end   + offset) * scalar );
 
     printf( "<circle cx=\"%s\" cy=\"%s\" r=\"1\" fill=\"#%06x\" />\n",
-            begp[0].str().c_str(), begp[1].str().c_str(), clr.to_rgb24() );
+            begp[0].str().c_str(), begp[1].str().c_str(), c.to_rgb24() );
 }
 
 
 void BWCNC::SVG::drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr )
 {
-    if( ! bool(lineto_color) ) return;
+    BWCNC::Color c = cmd->clr;
+    if( ! bool(cmd->clr) )
+    {
+        if( ! bool(lineto_color) )
+            return;
+        c = lineto_color;
+    }
+    //if( ! bool(lineto_color) ) return;
 
     std::vector<BWCNC::NumString> begp = VectorToNumStringArray( (cmd->begin + offset) * scalar );
     std::vector<BWCNC::NumString> endp = VectorToNumStringArray( (cmd->end   + offset) * scalar );
@@ -83,7 +97,7 @@ void BWCNC::SVG::drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr 
     printf( "<line x1=\"%s\" y1=\"%s\" x2=\"%s\" y2=\"%s\" style=\"stroke:#%06x;stroke-width:%d\" />\n",
             begp[0].str().c_str(), begp[1].str().c_str(),
             endp[0].str().c_str(), endp[1].str().c_str(),
-            clr.to_rgb24(), stroke_width );
+            c.to_rgb24(), stroke_width );
 }
 
 void BWCNC::SVG::print_end() { printf( "</svg>\n" ); }

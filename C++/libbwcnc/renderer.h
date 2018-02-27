@@ -76,6 +76,8 @@ class SVG : public GraphicalRenderer
 public:
     SVG(){;}
     virtual ~SVG(){;}
+    bool render_positive_z = true;
+    bool render_negative_z = true;
 
 protected:
     virtual void drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr );
