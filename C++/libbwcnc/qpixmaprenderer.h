@@ -36,7 +36,7 @@ protected:
   //virtual void drawarc(  const BWCNC::Command * cmd, const BWCNC::Color & clr ) ;
 
     virtual void print_start( const BWCNC::Boundingbox & );
-    virtual void print_end() { p->end(); }
+    virtual void print_end() { if( painter_is_owned ) p->end(); }
 };
 
 };

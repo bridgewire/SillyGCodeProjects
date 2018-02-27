@@ -48,7 +48,8 @@ void BWCNC::PixmapRenderer::print_start( const BWCNC::Boundingbox & )
 
     if( bool(backgd_color) )
         im->fill( QColor(backgd_color.to_rgb24()) );
-    p->begin(im);
+    if( painter_is_owned )
+        p->begin(im);
     p->setRenderHint( QPainter::Antialiasing );
     pen.setWidth(1);
 

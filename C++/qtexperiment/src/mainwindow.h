@@ -46,7 +46,6 @@ protected:
     int ticks = 0;
     bool tmr_active = false;
     QTimer tmr;
-    QPainter p;
     QGraphicsScene * scene = nullptr;
     QGraphicsPixmapItem * pixmap_item = nullptr;
     int a_value = 440; // 400; // 425;

@@ -131,14 +131,16 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
 #endif
 
     QImage img( scene_width, scene_height, QImage::Format_RGB32 );
+    QPainter painter;
+    painter.begin(&img);
 
 #if 1
-    BWCNC::PixmapRenderer renderer_l( &img );
+    BWCNC::PixmapRenderer renderer_l( &img, &painter );
     renderer_l.render_positive_z = p_bool;
     renderer_l.render_negative_z = n_bool;
     renderer_l.set_backgd_color( parms.backgd_clr );
 
-    BWCNC::PixmapRenderer renderer_r( &img );
+    BWCNC::PixmapRenderer renderer_r( &img, &painter );
     renderer_r.render_positive_z = p_bool;
     renderer_r.render_negative_z = n_bool;
     renderer_r.set_backgd_color( l_bool ? nullptr : parms.backgd_clr );
@@ -166,6 +168,8 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
 
     if( l_bool ) renderer_l.render_all( kl );
     if( r_bool ) renderer_r.render_all( kr );
+
+    painter.end();
 #else
     BWCNC::PixmapRenderer renderer( &img );
     renderer.render_positive_z = p_bool;
