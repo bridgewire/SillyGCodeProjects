@@ -68,6 +68,7 @@ public:
     {}
     virtual ~rotationZ(){}
 
+    const BWCNC::Color    cvf( const Eigen::Vector3d & ) { return BWCNC::Color(); }
     const Eigen::Matrix3d mvf( const Eigen::Vector3d & ) { Eigen::Matrix3d mat; mat << ::cos(t), -::sin(t), 0,   ::sin(t), ::cos(t), 0,   0, 0, 1; return mat; }
     const Eigen::Vector3d vvf( const Eigen::Vector3d & ) { return Eigen::Vector3d(0,0,0); }
 };
@@ -82,6 +83,7 @@ public:
     {}
     virtual ~rotationY(){}
 
+    const BWCNC::Color    cvf( const Eigen::Vector3d & ) { return BWCNC::Color(); }
     const Eigen::Matrix3d mvf( const Eigen::Vector3d & ) { Eigen::Matrix3d mat; mat << ::cos(t), 0, ::sin(t),   0, 1, 0,   -::sin(t), 0, ::cos(t); return mat; }
     const Eigen::Vector3d vvf( const Eigen::Vector3d & ) { return Eigen::Vector3d(0,0,0); }
 };
@@ -96,7 +98,8 @@ public:
     {}
     virtual ~skew_X(){}
 
-    const Eigen::Matrix3d mvf( const Eigen::Vector3d & ) { return Eigen::Matrix3d::Identity(); }
+    const BWCNC::Color    cvf( const Eigen::Vector3d &   ) { return BWCNC::Color(); }
+    const Eigen::Matrix3d mvf( const Eigen::Vector3d &   ) { return Eigen::Matrix3d::Identity(); }
     const Eigen::Vector3d vvf( const Eigen::Vector3d & v ) { return Eigen::Vector3d(0,shiftratio*v[0],0); }
 };
 
@@ -120,6 +123,7 @@ public:
     {}
     virtual ~mkcylinder(){}
 
+    const BWCNC::Color    cvf( const Eigen::Vector3d &   ) { return BWCNC::Color(); }
     const Eigen::Matrix3d mvf( const Eigen::Vector3d &   ) { return Eigen::Matrix3d::Identity(); }
     const Eigen::Vector3d vvf( const Eigen::Vector3d & v );
 };
@@ -180,6 +184,7 @@ public:
     {}
     virtual ~mkdisk(){}
 
+    const BWCNC::Color    cvf( const Eigen::Vector3d &   ) { return BWCNC::Color(); }
     const Eigen::Matrix3d mvf( const Eigen::Vector3d &   ) { return Eigen::Matrix3d::Identity(); }
     const Eigen::Vector3d vvf( const Eigen::Vector3d & v );
 };

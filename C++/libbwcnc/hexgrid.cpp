@@ -28,10 +28,10 @@ BWCNC::Part * BWCNC::HexGrid::make_inner_hexagon(
   Eigen::Vector3d pos(0,0,0);
   double nested_sidelen = 0;
   nested_params( inner_fraction, nth_inner, start, pos, nested_sidelen );
-  return hexagon( k, nested_sidelen, pos );
+  return hexagon( k, nested_sidelen, pos, nullptr, true );
 }
 
-BWCNC::Part * BWCNC::HexGrid::hexagon( BWCNC::PartContext & k, const double sidelen, const Eigen::Vector3d & start, const uint8_t * sides2skip )
+BWCNC::Part * BWCNC::HexGrid::hexagon( BWCNC::PartContext & k, const double sidelen, const Eigen::Vector3d & start, const uint8_t * sides2skip, bool closed )
 {
   // orientation: left-right symmetry around the vertical center line through two vertices
   const double triangle_longside  = sidelen * cos(M_PI_2/3);
@@ -53,9 +53,16 @@ BWCNC::Part * BWCNC::HexGrid::hexagon( BWCNC::PartContext & k, const double side
   Eigen::Vector3d vec = start;
   for( int i = 0; i < 6; i++ )
   {
-    vec = vec + path[i];
-    if( sides2skip && sides2skip[i] ) part->moveto( vec );
-    else                              part->lineto( vec );
+    bool closedok = false;
+    if( closed && i == 5 )
+      part->lineto_close( closedok );
+
+    if( ! closedok )
+    {
+      vec = vec + path[i];
+      if( sides2skip && sides2skip[i] ) part->moveto( vec );
+      else                              part->lineto( vec );
+    }
   }
 
   return part;

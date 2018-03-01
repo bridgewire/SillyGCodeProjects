@@ -13,6 +13,7 @@ public:
     crosshatchwaves() : position_dependent_transform_t(false, true) {}
     virtual ~crosshatchwaves(){}
 
+    const BWCNC::Color    cvf( const Eigen::Vector3d &   ) { return BWCNC::Color(); }
     const Eigen::Matrix3d mvf( const Eigen::Vector3d &   ) { return Eigen::Matrix3d::Identity(); }
     const Eigen::Vector3d vvf( const Eigen::Vector3d & v )
     {
@@ -53,6 +54,7 @@ public:
     leftrighteye3D() : position_dependent_transform_t(false, true) {}
     virtual ~leftrighteye3D(){}
 
+    const BWCNC::Color    cvf( const Eigen::Vector3d &   ) { return BWCNC::Color(); }
     const Eigen::Matrix3d mvf( const Eigen::Vector3d &   ) { return Eigen::Matrix3d::Identity(); }
     const Eigen::Vector3d vvf( const Eigen::Vector3d & p )
     {
@@ -84,6 +86,7 @@ public:
     double theta_max = 10;
     double L_mm = 100;
 public:
+    const BWCNC::Color    cvf( const Eigen::Vector3d & ) { return BWCNC::Color(); }
     const Eigen::Matrix3d mvf( const Eigen::Vector3d & ) { return (z_shift/2 + 1) * Eigen::Matrix3d::Identity(); }
     const Eigen::Vector3d vvf( const Eigen::Vector3d & )
     {

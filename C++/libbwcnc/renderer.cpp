@@ -9,19 +9,23 @@
 
 void BWCNC::Renderer::render_all( const BWCNC::PartContext & k, const std::string * /* filename */ )
 {
-#if 0
-    if( filename != nullptr )
-    {
-        set_output( filename );
-        closefileonfinish = true;
-    }
-#endif
+    print_start( k.bbox );
+
+    // c++11 forall construct. p is an element of partlist, a pointer
+    for( const auto & part_ptr : k.partlist )
+        part_ptr->render( this );
+
+    print_end();
+}
+
+void BWCNC::Renderer::render_all_z_order( BWCNC::PartContext & k )
+{
+    k.refresh_z_ascending();
 
     print_start( k.bbox );
 
-    for( auto part_ptr : k.partlist )  // c++11 forall construct. p is an element of partlist, a pointer
-        if( part_ptr )
-            part_ptr->render( this );
+    for( const auto & part_ptr : k.partlist_z_ascending )
+        part_ptr.second->render( this );
 
     print_end();
 }
@@ -46,7 +50,7 @@ void BWCNC::SVG::arcto( const BWCNC::Command * cmd )
     drawarc( cmd, lineto_color );
 }
 
-void BWCNC::SVG::drawarc( const BWCNC::Command & cmd, const BWCNC::Color & clr )
+void BWCNC::SVG::drawarc( const BWCNC::Command & cmd )
 {
     td::vector<NumString> begp = VectorToNumStringArray( (cmd.begin + offset) * scalar );
     td::vector<NumString> endp = VectorToNumStringArray( (cmd.end   + offset) * scalar );
@@ -61,7 +65,7 @@ void BWCNC::SVG::drawarc( const BWCNC::Command & cmd, const BWCNC::Color & clr )
 }
 #endif
 
-void BWCNC::SVG::draw_dot( const BWCNC::Command * cmd, const BWCNC::Color & clr )
+void BWCNC::SVG::draw_dot( const BWCNC::Command * cmd )
 {
     BWCNC::Color c = cmd->clr;
     if( ! bool(cmd->clr) )
@@ -79,8 +83,12 @@ void BWCNC::SVG::draw_dot( const BWCNC::Command * cmd, const BWCNC::Color & clr 
             begp[0].str().c_str(), begp[1].str().c_str(), c.to_rgb24() );
 }
 
+void BWCNC::SVG::drawpart( const BWCNC::Part    * /* prt */ )
+{
+}
 
-void BWCNC::SVG::drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr )
+
+void BWCNC::SVG::drawline( const BWCNC::Command * cmd )
 {
     BWCNC::Color c = cmd->clr;
     if( ! bool(cmd->clr) )

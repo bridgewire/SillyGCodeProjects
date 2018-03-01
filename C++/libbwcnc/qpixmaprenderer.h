@@ -31,9 +31,10 @@ private:
     bool painter_is_owned = false;
 
 protected:
-    virtual void drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr ) ;
-    virtual void draw_dot( const BWCNC::Command * cmd, const BWCNC::Color & clr ) ;
-  //virtual void drawarc(  const BWCNC::Command * cmd, const BWCNC::Color & clr ) ;
+    virtual void drawpart( const BWCNC::Part    * prt ) ;
+    virtual void drawline( const BWCNC::Command * cmd ) ;
+    virtual void draw_dot( const BWCNC::Command * cmd ) ;
+  //virtual void drawarc(  const BWCNC::Command * cmd ) ;
 
     virtual void print_start( const BWCNC::Boundingbox & );
     virtual void print_end() { if( painter_is_owned ) p->end(); }

@@ -76,13 +76,9 @@ protected:
     const char * m_moveto_clr =  nullptr;
     const char * m_bckgrd_clr = "#ffffff";
 
-  //void          nested_params( double outer_sidelen, double spacing_ratio, int nth_from_outer, const Eigen::Vector3d & start, double & x, double & y, double & outsidelen );
-  //BWCNC::Part * make_inner_hexagon( BWCNC::PartContext & k, double main_sidelen, double inner_fraction, int nth_inner, double start_x, double start_y, bool start_mark = false );
-  //BWCNC::Part * hexagon( BWCNC::PartContext & k, double sidelen, double x_start, double y_start, uint8_t * sides2skip = nullptr, bool start_mark = false );
-
     void          nested_params( double spacing_ratio, int nth_from_outer, const Eigen::Vector3d & start, Eigen::Vector3d & pos, double & nsidelen );
     BWCNC::Part * make_inner_hexagon( BWCNC::PartContext & k, double inner_fraction, int nth_inner, const Eigen::Vector3d & start );
-    BWCNC::Part * hexagon( BWCNC::PartContext & k, const double sidelen, const Eigen::Vector3d & start, const uint8_t * sides2skip = nullptr );
+    BWCNC::Part * hexagon( BWCNC::PartContext & k, const double sidelen, const Eigen::Vector3d & start, const uint8_t * sides2skip = nullptr, bool closed = false );
 };
 
 };

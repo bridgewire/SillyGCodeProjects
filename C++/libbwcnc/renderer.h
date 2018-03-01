@@ -10,6 +10,7 @@
 namespace BWCNC {
 
 class PartContext;
+class Part;
 class Command;
 
 class Renderer
@@ -19,7 +20,9 @@ public:
     virtual ~Renderer(){}
 
     virtual void render_all( const BWCNC::PartContext & k, const std::string * filename = nullptr ) ;
+    virtual void render_all_z_order( BWCNC::PartContext & k );
 
+    virtual void render( const BWCNC::Part    * prt ) = 0;
     virtual void lineto( const BWCNC::Command * cmd ) = 0;
     virtual void moveto( const BWCNC::Command * cmd ) = 0;
     virtual void dot_at( const BWCNC::Command * cmd ) = 0;
@@ -55,14 +58,16 @@ public:
     virtual void set_dot_color( const char * spec ) { dot_color = BWCNC::Color(spec); }
 
 protected:
-    virtual void lineto( const BWCNC::Command * cmd ) { drawline( cmd, lineto_color ); }
-    virtual void moveto( const BWCNC::Command * cmd ) { drawline( cmd, moveto_color ); }
-    virtual void dot_at( const BWCNC::Command * cmd ) { draw_dot( cmd, dot_color ); }
-  //virtual void arcto ( const BWCNC::Command * cmd ) { drawarc(  cmd, moveto_color ); }
+    virtual void render( const BWCNC::Part    * prt ) { drawpart( prt ); }
+    virtual void lineto( const BWCNC::Command * cmd ) { drawline( cmd ); }
+    virtual void moveto( const BWCNC::Command * cmd ) { drawline( cmd ); }
+    virtual void dot_at( const BWCNC::Command * cmd ) { draw_dot( cmd ); }
+  //virtual void arcto ( const BWCNC::Command * cmd ) { drawarc(  cmd ); }
 
-    virtual void drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr ) = 0;
-    virtual void draw_dot( const BWCNC::Command * cmd, const BWCNC::Color & clr ) = 0;
-  //virtual void drawarc(  const BWCNC::Command * cmd, const BWCNC::Color & clr );
+    virtual void drawpart( const BWCNC::Part    * prt ) = 0;
+    virtual void drawline( const BWCNC::Command * cmd ) = 0;
+    virtual void draw_dot( const BWCNC::Command * cmd ) = 0;
+  //virtual void drawarc(  const BWCNC::Command * cmd ) = 0;
 
     BWCNC::Color moveto_color = "#0000ff";
     BWCNC::Color lineto_color = "#ff0000";
@@ -80,9 +85,10 @@ public:
     bool render_negative_z = true;
 
 protected:
-    virtual void drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr );
-    virtual void draw_dot( const BWCNC::Command * cmd, const BWCNC::Color & clr );
-  //virtual void drawarc(  const BWCNC::Command * cmd, const BWCNC::Color & clr );
+    virtual void drawpart( const BWCNC::Part    * prt );
+    virtual void drawline( const BWCNC::Command * cmd );
+    virtual void draw_dot( const BWCNC::Command * cmd );
+  //virtual void drawarc(  const BWCNC::Command * cmd );
 
     virtual void print_start( const BWCNC::Boundingbox & bounds );
     virtual void print_end();

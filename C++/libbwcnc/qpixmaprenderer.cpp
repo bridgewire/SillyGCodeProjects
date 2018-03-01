@@ -1,9 +1,37 @@
 #include "command.h"
+#include "part.h"
 #include "qpixmaprenderer.h"
 
-void BWCNC::PixmapRenderer::drawline( const BWCNC::Command * cmd, const BWCNC::Color & clr )
+
+void BWCNC::PixmapRenderer::drawpart( const BWCNC::Part    * prt )
 {
-    //if( ! clr ) return;
+    double z_avg = 0;
+    int z_point_count = 0;
+    Eigen::Vector3d begin;
+    QVector<QPointF> pv;
+
+    for( auto cmd : prt->cmds )
+    {
+        QPointF p( cmd->begin[0], cmd->begin[1] );
+        pv.push_back(p);
+
+        z_avg += cmd->begin[2];
+        z_point_count++;
+    }
+
+    z_avg /= z_point_count;
+
+    if( ! render_positive_z && z_avg > 0 ) return;
+    if( ! render_negative_z && z_avg < 0 ) return;
+
+    QColor clr( prt->cmds[0]->clr.to_rgb24() );
+    QBrush fillbrush( clr );
+    p->setBrush( fillbrush );
+    p->drawPolygon( pv.constData(), pv.count() );
+}
+
+void BWCNC::PixmapRenderer::drawline( const BWCNC::Command * cmd )
+{
     if( ! cmd->clr ) return;
     if( ! render_positive_z && (cmd->begin[2] > 0 || cmd->end[2] > 0) ) return;
     if( ! render_negative_z && (cmd->begin[2] < 0 || cmd->end[2] < 0) ) return;
@@ -21,13 +49,13 @@ void BWCNC::PixmapRenderer::drawline( const BWCNC::Command * cmd, const BWCNC::C
     }
 }
 
-void BWCNC::PixmapRenderer::draw_dot( const BWCNC::Command * cmd, const BWCNC::Color & clr )
+void BWCNC::PixmapRenderer::draw_dot( const BWCNC::Command * cmd )
 {
-    if( ! clr ) return;
+    if( ! cmd->clr ) return;
     if( ! render_positive_z && cmd->begin[2] > 0 ) return;
     if( ! render_negative_z && cmd->begin[2] < 0 ) return;
 
-    pen.setColor( QColor(clr.to_rgb24()) );
+    pen.setColor( QColor(cmd->clr.to_rgb24()) );
     p->setPen( pen );
     p->drawEllipse( QPoint(cmd->begin[0], cmd->begin[1]), 1, 1 );
 

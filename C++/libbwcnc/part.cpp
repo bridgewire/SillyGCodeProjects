@@ -128,7 +128,7 @@ void BWCNC::Part::lineto_close( bool & isok )
 {
     isok = true;
     if( isclosed )        {               return; }  // already done
-    if( curpos != start ) { isok = false; return; }
+    if( curpos == start ) { isok = false; return; }
     if( moveto_cnt != 0 ) { isok = false; return; }
     if( lineto_cnt  < 2 ) { isok = false; return; }  // must be a triangle at minimum
 
@@ -458,6 +458,16 @@ void BWCNC::PartContext::append_part_list( std::vector<BWCNC::Part *> parts )
     for( auto p : parts ) append_part( p );
 }
 
+void BWCNC::PartContext::refresh_z_ascending()
+{
+    // clear the list without destroying the elements
+    partlist_z_ascending.erase( partlist_z_ascending.begin(), partlist_z_ascending.end() );
+    for( auto p : partlist )
+    {
+        double avg_z = (p->get_bbox().max[2] + p->get_bbox().min[2])/2;
+        partlist_z_ascending.insert( std::pair<double,BWCNC::Part *>(avg_z, p) );
+    }
+}
 
 void BWCNC::shift2( BWCNC::PartContext & k, shift2_t x_st, shift2_t y_st, shift2_t z_st, Eigen::Vector3d * offset_sum )
 {

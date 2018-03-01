@@ -37,18 +37,13 @@ static struct cmdline_params {
     double tick_size;
 
 } parms = {
- //120, 75, 1, .2,
-  //90, 50, 1, .2,
-  //30, 20, 1, .1,
-  //60, 32, 1, .18,
-
   //cols, rows, 1, .1,
-  //cols, rows, 1, .18,
+  cols, rows, 1, .18,
   //cols, rows, 1, .25,
   //cols, rows, 1, .5,
   //cols, rows, 1, .6,
   //cols, rows, 1, .7,
-  cols, rows, 1, .8,
+  //cols, rows, 1, .8,
   //cols, rows, 1, .9,
 
   //20, 20, 1, .2,
@@ -105,6 +100,9 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
     }
 
     crosshatchwaves chw_tform;
+
+    if( ticks % 1000 == 0 )
+        printf( "ticks == %d\n", ticks );
 
     chw_tform.ticks       = ticks * parms.tick_size;
     chw_tform.shiftscale  = (b_value - 499)/50.0;
@@ -166,8 +164,8 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
     kl.translate( Eigen::Vector3d( parms.xshift, parms.yshift, 0 ) );
     kr.translate( Eigen::Vector3d( parms.xshift, parms.yshift, 0 ) );
 
-    if( l_bool ) renderer_l.render_all( kl );
-    if( r_bool ) renderer_r.render_all( kr );
+    if( l_bool ) renderer_l.render_all_z_order( kl );
+    if( r_bool ) renderer_r.render_all_z_order( kr );
 
     painter.end();
 #else

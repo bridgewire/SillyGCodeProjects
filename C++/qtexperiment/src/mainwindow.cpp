@@ -128,6 +128,10 @@ void mainwindow::keyPressEvent( QKeyEvent * e )
 
         is_fullscreenmode = ! is_fullscreenmode;
         break;
+    case Qt::Key_S:
+        ticks += 100;
+        printf( "ticks: %d\n", ticks );
+        break;
     }
 }
 

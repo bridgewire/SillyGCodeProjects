@@ -2,6 +2,7 @@
 #define BWCNC_PART_H__
 
 #include <list>
+#include <map>
 #include <Eigen/Dense>
 #include "boundingbox.h"
 #include "command.h"
@@ -35,7 +36,14 @@ public:
     virtual void pull_commands_from( BWCNC::Part * p );
 
     virtual bool update_starting_position( const Eigen::Vector3d & pos );
-    virtual void render( BWCNC::Renderer * r ) { for( auto cmd : cmds ) if( cmd ) cmd->render( r ); }
+  //virtual void render( BWCNC::Renderer * r ) { for( auto cmd : cmds ) if( cmd ) cmd->render( r ); }
+    virtual void render( BWCNC::Renderer * r )
+    {
+        if( isclosed )
+            r->render( this );
+        else
+            for( auto cmd : cmds ) if( cmd ) cmd->render( r );
+    }
 
     virtual bool reposition( const Eigen::Vector3d & pos   );
     virtual void translate(  const Eigen::Vector3d & offst );
@@ -61,6 +69,8 @@ public:
     virtual void moveto_start() { moveto( start ); }
 
     virtual BWCNC::Boundingbox get_bbox(){ return bbox; }
+    virtual const BWCNC::Boundingbox & get_bbox() const { return bbox; }
+    virtual bool is_closed(){ return isclosed; }
 
 protected:
     virtual void update_position( const Eigen::Vector3d & pos );
@@ -150,6 +160,9 @@ protected:
 
 public:
     std::vector<BWCNC::Part *> partlist;
+    std::multimap<double, BWCNC::Part *> partlist_z_ascending;
+
+    void refresh_z_ascending();
 };
 
 typedef enum {
