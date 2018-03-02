@@ -54,7 +54,7 @@ static struct cmdline_params {
     nullptr,     // don't show moveto lines
     "#009900",
     "#000000", // "#fe8736",
-    .1
+    .151515
 };
 
 #define DO2PARTCONTEXTS 0
@@ -82,11 +82,15 @@ void render_eye_perspective( BWCNC::PartContext & k, double scene_width, double 
     leftright_tform.eye[0] = 21.16; // with 10' wide screen and 2048 pixels. average interpupillary distance is 2.47"
     if( isleft )                    // with bridge of nose at y == 0, (2.47/2) ... 1.24 * 2048/(10*12) =~ 21.16 pixels
         leftright_tform.eye[0] *= -1;
-    leftright_tform.eye[2] = scene_width;
+    leftright_tform.eye[2] = 2 * scene_width;
 
+    Eigen::Vector3d back2;
+
+    //shift2( k, BWCNC::to_center, BWCNC::to_center, BWCNC::to_none, &back2 );
     k.translate( Eigen::Vector3d( -scene_width/2, -scene_height/2, 0 ) );
     k.position_dependent_transform( &leftright_tform );
     k.translate( Eigen::Vector3d( scene_width/2, scene_height/2, 0 ) );
+    //undo_shift2( k, back2 );
 }
 
 #if 1
@@ -153,16 +157,18 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
     paint_z_blue( kr );
   //paint_z_red( kr );
 
-    bbox = k.get_bbox();
+    // shift the image/grid toward the center of the image
+    kl.translate( Eigen::Vector3d( parms.xshift, parms.yshift, scene_width/8 ) );
+    kr.translate( Eigen::Vector3d( parms.xshift, parms.yshift, scene_width/8 ) );
 
+#if 1
+    bbox = kl.get_bbox();
     render_eye_perspective( kl, bbox.width(), bbox.height(), true /* isleft */ );
     render_eye_perspective( kr, bbox.width(), bbox.height(), false );
-
-    // shift the image/grid toward the center of the image
-    //kl.translate( Eigen::Vector3d( (scene_width - bbox.width())/2, (scene_height - bbox.height())/2, 0 ) );
-    //kr.translate( Eigen::Vector3d( (scene_width - bbox.width())/2, (scene_height - bbox.height())/2, 0 ) );
-    kl.translate( Eigen::Vector3d( parms.xshift, parms.yshift, 0 ) );
-    kr.translate( Eigen::Vector3d( parms.xshift, parms.yshift, 0 ) );
+#else
+    render_eye_perspective( kl, scene_width, scene_height, true /* isleft */ );
+    render_eye_perspective( kr, scene_width, scene_height, false );
+#endif
 
     if( l_bool ) renderer_l.render_all_z_order( kl );
     if( r_bool ) renderer_r.render_all_z_order( kr );
@@ -180,7 +186,6 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
     k.translate( Eigen::Vector3d( parms.xshift, parms.yshift, 0 ) );
     renderer.render_all( k );
 #endif
-
 
     QPixmap pxmp;
     if( pxmp.convertFromImage( img ) )
@@ -264,7 +269,7 @@ static void paint_z_blue( BWCNC::PartContext & k )
                     Eigen::Vector3d avg_v = (cmd->begin + cmd->end) / 2;
                     double multiplier = (avg_v[2] - least)/range;
                     int R, G, B;
-                    G = R =  16 + 32 * multiplier; // =  0;
+                    G = R =   32 + 64 * multiplier; // =  0;
                     B     =  255 * multiplier;
                     cmd->clr = BWCNC::Color( R, G, B );
                 }

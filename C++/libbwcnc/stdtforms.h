@@ -38,7 +38,7 @@ public:
                      ));
 
       //z = 10 * (::cos(x*M_PI/2) - ::cos(y*M_PI/2));
-        z = 10 * ::sin(x + y);
+        z = -10 * (::sin(x + y) + ::cos(x + y));
 #endif
         return shiftscale * Eigen::Vector3d( x, y, z );
     }
