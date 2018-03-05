@@ -3,16 +3,14 @@
 
 #include <Eigen/Dense>
 
-
 namespace BWCNC
 {
 
 class HexGrid
 {
 public:
-    HexGrid( int c = 10, int r = 10, double len = 1, double scale = 30,
+    HexGrid( int c = 10, int r = 10, double len = 1,
              int nested_count = 1, double nested_pcnt = .5, bool includegrid = true,
-             Eigen::Vector3d offset = Eigen::Vector3d(0,0,0),
              const char * clr_lineto = "#ff0000",
              const char * clr_moveto = nullptr,
              const char * clr_bckgrd = "#ffffff" )
@@ -21,8 +19,6 @@ public:
       m_nested(nested_count),
       m_nested_spacing(nested_pcnt),
       m_sidelen(len),
-      m_scale(scale),
-      m_shift(offset),
       m_includegrid(includegrid),
       m_lineto_clr(clr_lineto),
       m_moveto_clr(clr_moveto),
@@ -35,19 +31,17 @@ public:
       m_moveto_clr = clr_moveto;
       m_bckgrd_clr = clr_bckgrd;
     }
-    void set_offset( const Eigen::Vector3d & offset ) { m_shift = offset; }
     void set_nested_parms( int nested_count = 1, double nested_pcnt = .5, bool includegrid = true )
     { 
       m_nested = nested_count;
       m_nested_spacing = nested_pcnt;
       m_includegrid = includegrid;
     }
-    void set_primary_params( int c = 10, int r = 10, double len = 1, double scale = 30 )
+    void set_primary_params( int c = 10, int r = 10, double len = 1 )
     {
       m_cols    = c;
       m_rows    = r;
       m_sidelen = len;
-      m_scale   = scale;
     }
     void set_renderer_colors( BWCNC::Renderer * r )
     {
@@ -67,9 +61,6 @@ protected:
     double m_nested_spacing;
 
     double m_sidelen = 0;
-    double m_scale = 0;
-
-    Eigen::Vector3d m_shift;
 
     bool m_includegrid = true;
     const char * m_lineto_clr = "#aa0000";

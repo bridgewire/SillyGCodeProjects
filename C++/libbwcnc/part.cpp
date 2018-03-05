@@ -206,8 +206,6 @@ void BWCNC::Part::transform( const Eigen::Matrix3d & mat, bool remake_bbox )
 
     if( remake_bbox )
         bbox = newbbox;
-    else
-        bbox.transform( mat );
 }
 void BWCNC::Part::scale( const double scalar )
 {
@@ -326,8 +324,6 @@ void BWCNC::PartContext::transform( const Eigen::Matrix3d & mat, bool update_bbo
 
     if( update_bbox )
         reunion_boundingbox();
-    else
-        bbox.transform( mat );
 }
 
 void BWCNC::PartContext::scale( const double scalar )

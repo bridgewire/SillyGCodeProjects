@@ -243,7 +243,7 @@ int main( int argc, char ** argv )
 
     if( handle_params( argc, argv ) )
     {
-        BWCNC::HexGrid grid( parms.cols, parms.rows, parms.sidelen, parms.scale,
+        BWCNC::HexGrid grid( parms.cols, parms.rows, parms.sidelen,
                              parms.nested, parms.nested_spacing, ! parms.suppress_grid );
 
         grid.fill_partctx_with_grid( k );
@@ -271,9 +271,8 @@ int main( int argc, char ** argv )
 #endif
 
 #if 0
-    HexGrid( int c = 10, int r = 10, double len = 1, double scale = 30,
+    HexGrid( int c = 10, int r = 10, double len = 1,
              int nested_count = 1, double nested_pcnt = .5, bool includegrid = true,
-             Eigen::Vector3d offset = Eigen::Vector3d(0,0,0),
              const char * clr_lineto = "#ff0000",
              const char * clr_moveto = nullptr,
              const char * clr_bckgrd = "#ffffff" )

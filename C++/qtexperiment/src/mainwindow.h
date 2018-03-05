@@ -43,13 +43,13 @@ protected:
 
 protected:
     int tmr_interval_msec = 10;
-    int ticks = -1600;
+    int ticks = 0;
     bool tmr_active = false;
     QTimer tmr;
     QGraphicsScene * scene = nullptr;
     QGraphicsPixmapItem * pixmap_item = nullptr;
-    int a_value = 440; // 340; // 440; // 400; // 425;
-    int b_value = 700; // 600; // 780; // 600; // 750;
+    int a_value = 400; // 440; // 340; // 440; // 400; // 425;
+    int b_value = 650; // 700; // 600; // 780; // 600; // 750;
 
     bool p_bool = true;
     bool n_bool = true;

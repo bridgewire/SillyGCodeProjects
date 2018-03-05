@@ -5,8 +5,17 @@ std::ostream & operator<<( std::ostream & s, const BWCNC::Boundingbox & bbox ) {
 
 std::ostream & BWCNC::Boundingbox::to_ostream( std::ostream & s ) const
 {
+    //Eigen::Vector3d avg = Eigen::Vector3d(0,0,0);
+    //if( pointcnt != 0 ) avg = pointsum / pointcnt;
+
     s << std::dec
-      << "bbox{ min:" << "(" << min.transpose() << " )" << ", max:" << "(" << max.transpose() << " )" << " }";
+      << "bbox{ min:" << "(" << min.transpose() << " )"
+          << ", max:" << "(" << max.transpose() << " )"
+          << ", avg:"
+
+          << "(" << pointsum.transpose() << " ) / "  << pointcnt << " == "
+          << "(" << avg().transpose() << " )"
+          << " }";
 
     return s;
 }

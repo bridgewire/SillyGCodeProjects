@@ -37,21 +37,36 @@ public:
                       + ticks
                      ));
 
+#if 1
       //z = 10 * (::cos(x*M_PI/2) - ::cos(y*M_PI/2));
+      //z = -10 * (::sin(x - y) + ::cos(y - x));
         z = -10 * (::sin(x + y) + ::cos(x + y));
+#else
+        double shiftdist = ::sqrt(x*x + y*y);
+        if( shiftdist < 1e-8 ) shiftdist = 1e-8;
+
+      //z = -10 * (x+y > 0 ? 1 : -1) * :: pow( 1/shiftdist, 1.0/3 );
+      //z = (x+y > 0 ? 1 : -1) * ::pow( 1/shiftdist, 1.0/3 );
+        z = 10 * (x+y > 0 ? 1 : -1) * ::pow( 1/shiftdist, 1.0/3 );
+#endif
 #endif
         return shiftscale * Eigen::Vector3d( x, y, z );
     }
 };
 
 
+// this is called leftrighteye3D but it's more like a general purpose z-zoom
+// that takes binocular vision into account. experimental! expect changes.
 class leftrighteye3D : public BWCNC::position_dependent_transform_t
 {
 public:
     bool is_positive = true;
     Eigen::Vector3d eye;
 public:
-    leftrighteye3D() : position_dependent_transform_t(false, true) {}
+    leftrighteye3D() : leftrighteye3D(Eigen::Vector3d(0,0,0)) {}
+    leftrighteye3D(double eye_x, double eye_y, double eye_z) : leftrighteye3D(Eigen::Vector3d(eye_x,eye_y,eye_z)) {}
+    leftrighteye3D(Eigen::Vector3d eye_pixel_position) : position_dependent_transform_t(false, true), eye(eye_pixel_position) {}
+
     virtual ~leftrighteye3D(){}
 
     const BWCNC::Color    cvf( const Eigen::Vector3d &   ) { return BWCNC::Color(); }
@@ -61,12 +76,9 @@ public:
 #if 1
         Eigen::Vector3d v = p - eye;
         Eigen::Vector3d u = v;
-      //double s          =  v[2]/eye[2];
         double s          = -eye[2]/v[2];
         u[2]              = -eye[2];
         Eigen::Vector3d c = s*v - u;
-        c[1] = 0;
-        c[2] = 0;
         return c;
 #else
         Eigen::Vector3d v = p - eye;

@@ -16,7 +16,6 @@
 static int cols = 58;
 static int rows = round(1.13 * cols * 1080 / 2048.0);
 
-
 static struct cmdline_params {
     int cols;
     int rows;
@@ -27,6 +26,7 @@ static struct cmdline_params {
     double scale;
     double xshift;
     double yshift;
+    double zshift;
     bool   center;
 
     bool suppress_grid;
@@ -35,6 +35,7 @@ static struct cmdline_params {
     const char * backgd_clr;
 
     double tick_size;
+    int ticks_start;
 
 } parms = {
   //cols, rows, 1, .1,
@@ -48,13 +49,13 @@ static struct cmdline_params {
 
   //20, 20, 1, .2,
   //1, 10, 0, 0,
-    1,  8, 100, 50, true,
+    1,  7, 100, 50, 0, true,
   //1, 20, 0, 0,
     true,
     nullptr,     // don't show moveto lines
     "#009900",
     "#000000", // "#fe8736",
-    .151515
+    .151515, -1600
 };
 
 #define DO2PARTCONTEXTS 0
@@ -63,28 +64,33 @@ static struct cmdline_params {
 void mainwindow::create_hexgrid_xhatchwaves()
 {
     BWCNC::HexGrid grid(
-            parms.cols, parms.rows, parms.sidelength, parms.scale,
+            parms.cols, parms.rows, parms.sidelength,
             parms.nested, parms.nested_spacing, ! parms.suppress_grid,
-            Eigen::Vector3d( parms.xshift, parms.yshift, 0),
             parms.lineto_clr, parms.moveto_clr, parms.backgd_clr );
 
     grid.fill_partctx_with_grid( kontext );
 }
 
-static void paint_z_blue( BWCNC::PartContext & k );
+static void paint_z_blue( const char * label, BWCNC::PartContext & ktx );
 //static void paint_z_red( BWCNC::PartContext & k );
 
 void render_eye_perspective( BWCNC::PartContext & k, double scene_width, double scene_height, bool isleft )
 {
-    leftrighteye3D leftright_tform;
-
-  //leftright_tform.eye[0] = 100; // with 10' wide screen and 2048 pixels. average interpupillary distance is 2.47"
+    //                              x                            y               z
+    leftrighteye3D leftright_tform( (isleft ? -1 : 1) * 21.16 , -scene_height/2, 2 * scene_width);
+#if 0
+    leftright_tform.eye[1] = 0;
     leftright_tform.eye[0] = 21.16; // with 10' wide screen and 2048 pixels. average interpupillary distance is 2.47"
     if( isleft )                    // with bridge of nose at y == 0, (2.47/2) ... 1.24 * 2048/(10*12) =~ 21.16 pixels
         leftright_tform.eye[0] *= -1;
     leftright_tform.eye[2] = 2 * scene_width;
 
+    // with bridge of nose at y == 0, (2.47/2) ... 1.24 * 2048/(10*12) =~ 21.16 pixels
+    if( isleft )
+        leftright_tform.eye[0] *= -1;
+
     Eigen::Vector3d back2;
+#endif
 
     //shift2( k, BWCNC::to_center, BWCNC::to_center, BWCNC::to_none, &back2 );
     k.translate( Eigen::Vector3d( -scene_width/2, -scene_height/2, 0 ) );
@@ -103,17 +109,37 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
         create_hexgrid_xhatchwaves();
     }
 
+    BWCNC::Boundingbox kontext_bbox = kontext.get_bbox();
+
+    const double w = scene->sceneRect().width();
+    const double h = scene->sceneRect().height();
+
+    QImage img( w, h, QImage::Format_RGB32 );
+    QPainter painter;
+
+    BWCNC::PixmapRenderer renderer_l( &img, &painter );
+    BWCNC::PixmapRenderer renderer_r( &img, &painter );
+
+    renderer_l.render_positive_z = p_bool;
+    renderer_l.render_negative_z = n_bool;
+    renderer_l.set_backgd_color( parms.backgd_clr );
+
+    renderer_r.render_positive_z = p_bool;
+    renderer_r.render_negative_z = n_bool;
+    renderer_r.set_backgd_color( l_bool ? nullptr : parms.backgd_clr );
+
+    BWCNC::PartContext kl;
+    BWCNC::PartContext kr;
+
     crosshatchwaves chw_tform;
 
-    if( ticks % 1000 == 0 )
-        printf( "ticks == %d\n", ticks );
-
-    chw_tform.ticks       = ticks * parms.tick_size;
+    chw_tform.ticks       = (ticks + parms.ticks_start) * parms.tick_size;
     chw_tform.shiftscale  = (b_value - 499)/50.0;
     chw_tform.w           = (a_value - 499)/(M_PI * 100);
 
-    double scene_width  = scene->sceneRect().width();
-    double scene_height = scene->sceneRect().height();
+
+    if( (ticks + parms.ticks_start) % 1000 == 0 )
+        printf( "ticks == %d\n", ticks + parms.ticks_start );
 
     BWCNC::PartContext k;
     kontext.copy_into( k );
@@ -125,50 +151,58 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
     k.position_dependent_transform( &chw_tform );
     k.translate( Eigen::Vector3d( bbox.width()/2,   bbox.height()/2, 0 ) );
 
+  //k.translate( Eigen::Vector3d( 0, 0, parms.zshift ) );
+
+    double zoomscale =    (1 - ::exp( -(ticks * parms.tick_size / 10) ));
+    parms.zshift = -w * 10 * (1 - zoomscale);
+    parms.xshift =  w*(1 - zoomscale)/2 + 150*zoomscale;
+    parms.yshift =  h*(1 - zoomscale)/2 + 100*zoomscale;
+
+
 #if 0
     BWCNC::Boundingbox bbox = k.get_bbox();
-    parms.scale = 1.5 * scene_width / bbox.width();
+    parms.scale = 1.5 * w / bbox.width();
 #else
     k.scale( parms.scale );
 #endif
 
-    QImage img( scene_width, scene_height, QImage::Format_RGB32 );
-    QPainter painter;
+
     painter.begin(&img);
 
 #if 1
-    BWCNC::PixmapRenderer renderer_l( &img, &painter );
-    renderer_l.render_positive_z = p_bool;
-    renderer_l.render_negative_z = n_bool;
-    renderer_l.set_backgd_color( parms.backgd_clr );
-
-    BWCNC::PixmapRenderer renderer_r( &img, &painter );
-    renderer_r.render_positive_z = p_bool;
-    renderer_r.render_negative_z = n_bool;
-    renderer_r.set_backgd_color( l_bool ? nullptr : parms.backgd_clr );
-
-    BWCNC::PartContext kl;
-    BWCNC::PartContext kr;
-
     k.copy_into( kl );
     k.copy_into( kr );
 
-    paint_z_blue( kl );
-    paint_z_blue( kr );
-  //paint_z_red( kr );
-
     // shift the image/grid toward the center of the image
-    kl.translate( Eigen::Vector3d( parms.xshift, parms.yshift, scene_width/8 ) );
-    kr.translate( Eigen::Vector3d( parms.xshift, parms.yshift, scene_width/8 ) );
+#if 1
+    kl.translate( Eigen::Vector3d( 0, 0, parms.zshift ) );
+    kr.translate( Eigen::Vector3d( 0, 0, parms.zshift ) );
+#else
+    bbox = kl.get_bbox();
+    parms.xshift = ( w - bbox.width()  )/2;
+    parms.yshift = ( h - bbox.height() )/2;
+    parms.zshift = 0;
+    kl.translate( Eigen::Vector3d( parms.xshift, parms.yshift, parms.zshift ) );
+    kr.translate( Eigen::Vector3d( parms.xshift, parms.yshift, parms.zshift ) );
+#endif
+
 
 #if 1
     bbox = kl.get_bbox();
     render_eye_perspective( kl, bbox.width(), bbox.height(), true /* isleft */ );
     render_eye_perspective( kr, bbox.width(), bbox.height(), false );
 #else
-    render_eye_perspective( kl, scene_width, scene_height, true /* isleft */ );
-    render_eye_perspective( kr, scene_width, scene_height, false );
+    render_eye_perspective( kl, w, h, true /* isleft */ );
+    render_eye_perspective( kr, w, h, false );
 #endif
+
+    kl.translate( Eigen::Vector3d( parms.xshift, parms.yshift, 0 ) );
+    kr.translate( Eigen::Vector3d( parms.xshift, parms.yshift, 0 ) );
+
+    bbox = kl.get_bbox();
+    paint_z_blue( "kl", kl );
+    paint_z_blue( "kr", kr );
+  //paint_z_red( kr );
 
     if( l_bool ) renderer_l.render_all_z_order( kl );
     if( r_bool ) renderer_r.render_all_z_order( kr );
@@ -182,7 +216,7 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
 
     paint_z_blue( k );
   //bbox = k.get_bbox();
-  //k.translate( Eigen::Vector3d( (scene_width - bbox.width())/2, (scene_height - bbox.height())/2, 0 ) );
+  //k.translate( Eigen::Vector3d( (w - bbox.width())/2, (h - bbox.height())/2, 0 ) );
     k.translate( Eigen::Vector3d( parms.xshift, parms.yshift, 0 ) );
     renderer.render_all( k );
 #endif
@@ -190,6 +224,12 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
     QPixmap pxmp;
     if( pxmp.convertFromImage( img ) )
         pixmap_item->setPixmap(pxmp);
+
+#if 0
+    BWCNC::Boundingbox bbox_posttform = kr.get_bbox();
+    BWCNC::Boundingbox bbox_diff = bbox_posttform - kontext_bbox;
+    std::cout <<  "bbox diff: " << bbox_diff << "\n";
+#endif
 }
 
 #else
@@ -252,30 +292,125 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
 }
 #endif
 
-static void paint_z_blue( BWCNC::PartContext & k )
+static void paint_z_blue( const char * /*label*/, BWCNC::PartContext & ktx )
 {
-    BWCNC::Boundingbox bbox = k.get_bbox();
+    BWCNC::Boundingbox bbox = ktx.get_bbox();
     double range =  bbox.depth();
     double least =  bbox.min[2];
 
-    for( auto p : k.partlist )
+    double global_zmin = 1000;
+    double global_zmax = -1000;
+
+    double z_avg;
+    double multiplier;
+    int R, G, B;
+
+    double stats[10] = {0};
+    double cmd_stats[10] = {0};
+
+    for( auto p : ktx.partlist )
     {
         if( p )
         {
-            for( auto cmd : p->cmds )
+            if( p->is_closed() )
+            {
+                const BWCNC::Boundingbox bbox = p->get_bbox();
+                double z_avg = bbox.min[2] + bbox.depth()/2;
+                double avg_z = bbox.avg()[2];
+
+                double multiplier = (avg_z - least)/range;
+                int R, G, B;
+                G = R =   32 + 64 * multiplier; // =  0;
+                B     =  255 * multiplier;
+
+                stats[0] += 1;
+                stats[1] += multiplier;
+                stats[3] += bbox.min[2];
+                stats[4] += bbox.depth();
+                stats[5] += z_avg;
+                stats[6] += avg_z;
+                stats[7] += (z_avg - avg_z);
+
+                global_zmin = global_zmin < bbox.min[2] ? global_zmin : bbox.min[2];
+                global_zmax = global_zmax > bbox.max[2] ? global_zmax : bbox.max[2];
+
+//                if( ++i % 1000 == 0 )
+//                printf( "least:%f range:%f min:%f depth:%f -> multiplier:%f [%d,%d,%d]\n",
+//                        least, range, bbox.min[2], bbox.depth(), multiplier, R, G, B );
+
+                for( auto cmd : p->cmds ) if( cmd ) cmd->clr = BWCNC::Color( R, G, B );
+            }
+            else
+                for( auto cmd : p->cmds )
             {
                 if( cmd )
                 {
-                    Eigen::Vector3d avg_v = (cmd->begin + cmd->end) / 2;
-                    double multiplier = (avg_v[2] - least)/range;
-                    int R, G, B;
+                    z_avg = (cmd->begin[2] + cmd->end[2]) / 2;
+                    //Eigen::Vector3d avg_v = (cmd->begin + cmd->end) / 2;
+                    //multiplier = (avg_v[2] - least)/range;
+                    multiplier = (z_avg - least)/range;
                     G = R =   32 + 64 * multiplier; // =  0;
                     B     =  255 * multiplier;
                     cmd->clr = BWCNC::Color( R, G, B );
+
+
+                    cmd_stats[0] += 1;
+                    cmd_stats[1] += z_avg;
+                    cmd_stats[2] += cmd->begin[2];
+                    cmd_stats[3] += cmd->end[2];
+                    cmd_stats[4] += multiplier;
                 }
             }
         }
     }
+
+#if 0
+    if( cmd_stats[0] > 0 )
+    {
+        printf( "cmd_stats(%s): least:%f range:%f cnt:%.0f z_avg:%f begin:%f end:%f mult:%f\n",
+                    label,
+                    least,
+                    range,
+                    cmd_stats[0],
+                    cmd_stats[1] / cmd_stats[0],
+                    cmd_stats[2] / cmd_stats[0],
+                    cmd_stats[3] / cmd_stats[0],
+                    cmd_stats[4] / cmd_stats[0]
+                );
+#if 0
+                    cmd_stats[0] += 1;
+                    cmd_stats[1] += z_avg;
+                    cmd_stats[2] += cmd->begin[2];
+                    cmd_stats[3] += cmd->end[2];
+                    cmd_stats[4] += multiplier;
+#endif
+    }
+
+    if( stats[0] > 0 )
+    {
+        printf( "stats(%s): Glblzrange{%f,%f} least:%f range:%f cnt:%.0f mult:%f min:%f depth:%f z_avg:%f avg_z:%f (z_avg-avg_z):%f\n",
+                label,
+                global_zmin, global_zmax,
+
+                least, range,
+                stats[0],
+                stats[1] / stats[0],
+                stats[3] / stats[0],
+                stats[4] / stats[0],
+                stats[5] / stats[0],
+                stats[6] / stats[0],
+                stats[7] / stats[0] );
+#if 0
+                stats[0] += 1;
+                stats[1] += multiplier;
+                stats[3] += bbox.min[2];
+                stats[4] += bbox.depth();
+                stats[5] += z_avg;
+                stats[6] += avg_z;
+                stats[7] += (z_avg - avg_z);
+#endif
+    }
+#endif
 }
 
 
@@ -320,9 +455,8 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
 
 #if 1
     BWCNC::HexGrid grid(
-            parms.cols, parms.rows, parms.sidelength, parms.scale,
+            parms.cols, parms.rows, parms.sidelength,
             parms.nested, parms.nested_spacing, ! parms.suppress_grid,
-            Eigen::Vector3d( parms.xshift, parms.yshift, 0),
             parms.lineto_clr, parms.moveto_clr, parms.backgd_clr );
 #else
     BWCNC::LizardGrid grid( parms.cols, parms.rows, parms.sidelength, parms.scale );
