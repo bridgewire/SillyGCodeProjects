@@ -6,11 +6,13 @@
 class crosshatchwaves : public BWCNC::position_dependent_transform_t
 {
 public:
-    double ticks = 0;
-    double w = 1/(3*M_PI);
-    double shiftscale = 7;
+    const double ticks = 0;
+    const double w = 1/(3*M_PI);
+    const double shiftscale = 7;
 public:
-    crosshatchwaves() : position_dependent_transform_t(false, true) {}
+    crosshatchwaves( double T = 0, double W = 1/(3*M_PI), double S = 7 )
+        : position_dependent_transform_t(false, true), ticks(T), w(W), shiftscale(S)
+    {}
     virtual ~crosshatchwaves(){}
 
     const BWCNC::Color    cvf( const Eigen::Vector3d &   ) { return BWCNC::Color(); }
@@ -37,17 +39,20 @@ public:
                       + ticks
                      ));
 
-#if 1
-      //z = 10 * (::cos(x*M_PI/2) - ::cos(y*M_PI/2));
-      //z = -10 * (::sin(x - y) + ::cos(y - x));
-        z = -10 * (::sin(x + y) + ::cos(x + y));
+#if 0
+      //z =  10 * (::cos(x*M_PI/2) - ::cos(y*M_PI/2));
+        z = -10 * (::sin(x - y) + ::cos(y - x));
+      //z =  -1 * (::sin(x + y) + ::cos(x + y));
 #else
         double shiftdist = ::sqrt(x*x + y*y);
         if( shiftdist < 1e-8 ) shiftdist = 1e-8;
 
       //z = -10 * (x+y > 0 ? 1 : -1) * :: pow( 1/shiftdist, 1.0/3 );
       //z = (x+y > 0 ? 1 : -1) * ::pow( 1/shiftdist, 1.0/3 );
-        z = 10 * (x+y > 0 ? 1 : -1) * ::pow( 1/shiftdist, 1.0/3 );
+        z =  20 * (x+y > 0 ? 1 : -1) * ::pow( 1/shiftdist, 1.0/3 );
+      //z =  ::pow( 1/shiftdist, 1.0/3 );
+      //printf( "%f\n", 20 * (x+y > 0 ? 1 : -1) * ::pow( 1/shiftdist, 1.0/3 )  );
+
 #endif
 #endif
         return shiftscale * Eigen::Vector3d( x, y, z );
@@ -60,8 +65,7 @@ public:
 class leftrighteye3D : public BWCNC::position_dependent_transform_t
 {
 public:
-    bool is_positive = true;
-    Eigen::Vector3d eye;
+    const Eigen::Vector3d eye;
 public:
     leftrighteye3D() : leftrighteye3D(Eigen::Vector3d(0,0,0)) {}
     leftrighteye3D(double eye_x, double eye_y, double eye_z) : leftrighteye3D(Eigen::Vector3d(eye_x,eye_y,eye_z)) {}

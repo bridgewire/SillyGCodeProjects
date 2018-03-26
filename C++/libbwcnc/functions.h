@@ -28,7 +28,7 @@ void pos_dep_tform( mvf_t mvf, vvf_t vvf, Eigen::Vector3d & v );
 void pos_dep_tform( pdt_t * t, Eigen::Vector3d & v );
 
 
-class position_dependent_transform_t // subclass this to use in the second pos_dep_tform below
+class position_dependent_transform_t
 {
 protected:
     bool m_has_mvf;

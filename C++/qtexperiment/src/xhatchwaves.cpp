@@ -13,8 +13,9 @@
 
 //using namespace BWCNC;
 
-static int cols = 58;
+static int cols = 40; //108; // 58;
 static int rows = round(1.13 * cols * 1080 / 2048.0);
+static double s = 8 * 58.0 / cols;
 
 static struct cmdline_params {
     int cols;
@@ -49,7 +50,7 @@ static struct cmdline_params {
 
   //20, 20, 1, .2,
   //1, 10, 0, 0,
-    1,  7, 100, 50, 0, true,
+    1,  s, s/7*100, s/7*50, 0, true,
   //1, 20, 0, 0,
     true,
     nullptr,     // don't show moveto lines
@@ -69,6 +70,9 @@ void mainwindow::create_hexgrid_xhatchwaves()
             parms.lineto_clr, parms.moveto_clr, parms.backgd_clr );
 
     grid.fill_partctx_with_grid( kontext );
+    printf( "passing %d to workers.start_threads()\n", threadcnt );
+    workers.start_threads( threadcnt );
+    kontext.setup_shareable_workers( &workers );
 }
 
 static void paint_z_blue( const char * label, BWCNC::PartContext & ktx );
@@ -76,8 +80,9 @@ static void paint_z_blue( const char * label, BWCNC::PartContext & ktx );
 
 void render_eye_perspective( BWCNC::PartContext & k, double scene_width, double scene_height, bool isleft )
 {
-    //                              x                            y               z
-    leftrighteye3D leftright_tform( (isleft ? -1 : 1) * 21.16 , -scene_height/2, 2 * scene_width);
+    //                                                      x                y                 z
+  //leftrighteye3D leftright_tform( (isleft ? -1 : 1) * 21.16,  scene_height/4,  2 * scene_width);
+    leftrighteye3D leftright_tform( (isleft ? -1 : 1) * 21.16,  scene_height/8,  2 * scene_width);
 #if 0
     leftright_tform.eye[1] = 0;
     leftright_tform.eye[0] = 21.16; // with 10' wide screen and 2048 pixels. average interpupillary distance is 2.47"
@@ -102,6 +107,8 @@ void render_eye_perspective( BWCNC::PartContext & k, double scene_width, double 
 #if 1
 void mainwindow::refresh_hexgrid_xhatchwaves()
 {
+    if( ! l_bool && ! r_bool ) return;
+
     static bool kontext_is_ready = false;
     if( ! kontext_is_ready )
     {
@@ -128,15 +135,22 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
     renderer_r.render_negative_z = n_bool;
     renderer_r.set_backgd_color( l_bool ? nullptr : parms.backgd_clr );
 
+    /////////////////////////////////////////////////////////////////////////////////////
+    // changing the ticksize without any compensation will catapult the image forward or
+    // backward through the sequence. what we want is for it to just speed up or slow
+    // down, so when the tick-size is changed, compensate using a ticks-start offset.
+    double new_tick_size = exp( log_tick_stepsize );
+    parms.ticks_start += (1 - new_tick_size/parms.tick_size)*(ticks + parms.ticks_start);
+    parms.tick_size = new_tick_size;
+    /////////////////////////////////////////////////////////////////////////////////////
+
     BWCNC::PartContext kl;
     BWCNC::PartContext kr;
 
-    crosshatchwaves chw_tform;
-
-    chw_tform.ticks       = (ticks + parms.ticks_start) * parms.tick_size;
-    chw_tform.shiftscale  = (b_value - 499)/50.0;
-    chw_tform.w           = (a_value - 499)/(M_PI * 100);
-
+    crosshatchwaves chw_tform(
+            (ticks + parms.ticks_start) * parms.tick_size, // ticks
+            (a_value - 499)/(M_PI * 100),                  // omega
+            (b_value - 499)/50.0 );                        // scaler
 
     if( (ticks + parms.ticks_start) % 1000 == 0 )
         printf( "ticks == %d\n", ticks + parms.ticks_start );
@@ -149,12 +163,12 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
 
     k.translate( Eigen::Vector3d( -bbox.width()/2, -bbox.height()/2, 0 ) );
     k.position_dependent_transform( &chw_tform );
-    k.translate( Eigen::Vector3d( bbox.width()/2,   bbox.height()/2, 0 ) );
+    k.translate( Eigen::Vector3d(  bbox.width()/2,   bbox.height()/2, 0 ) );
 
   //k.translate( Eigen::Vector3d( 0, 0, parms.zshift ) );
 
     double zoomscale =    (1 - ::exp( -(ticks * parms.tick_size / 10) ));
-    parms.zshift = -w * 10 * (1 - zoomscale);
+    parms.zshift = -w*(1 - zoomscale);
     parms.xshift =  w*(1 - zoomscale)/2 + 150*zoomscale;
     parms.yshift =  h*(1 - zoomscale)/2 + 100*zoomscale;
 
@@ -166,17 +180,16 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
     k.scale( parms.scale );
 #endif
 
-
     painter.begin(&img);
 
 #if 1
-    k.copy_into( kl );
-    k.copy_into( kr );
+    if( l_bool ) k.copy_into( kl );
+    if( r_bool ) k.copy_into( kr );
 
     // shift the image/grid toward the center of the image
 #if 1
-    kl.translate( Eigen::Vector3d( 0, 0, parms.zshift ) );
-    kr.translate( Eigen::Vector3d( 0, 0, parms.zshift ) );
+    if( l_bool ) kl.translate( Eigen::Vector3d( 0, 0, parms.zshift ) );
+    if( r_bool ) kr.translate( Eigen::Vector3d( 0, 0, parms.zshift ) );
 #else
     bbox = kl.get_bbox();
     parms.xshift = ( w - bbox.width()  )/2;
@@ -187,25 +200,31 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
 #endif
 
 
-#if 1
-    bbox = kl.get_bbox();
-    render_eye_perspective( kl, bbox.width(), bbox.height(), true /* isleft */ );
-    render_eye_perspective( kr, bbox.width(), bbox.height(), false );
-#else
-    render_eye_perspective( kl, w, h, true /* isleft */ );
-    render_eye_perspective( kr, w, h, false );
-#endif
+    if( ! f_bool )  // we desire flat presentation, without perspective shifts?
+    {
+        bbox = l_bool ? kl.get_bbox() : kr.get_bbox() ;
+        if( l_bool ) render_eye_perspective( kl, bbox.width(), bbox.height(), true /* isleft */ );
+        if( r_bool ) render_eye_perspective( kr, bbox.width(), bbox.height(), false );
+    }
 
-    kl.translate( Eigen::Vector3d( parms.xshift, parms.yshift, 0 ) );
-    kr.translate( Eigen::Vector3d( parms.xshift, parms.yshift, 0 ) );
+    if( l_bool ) kl.translate( Eigen::Vector3d( parms.xshift, parms.yshift, 0 ) );
+    if( r_bool ) kr.translate( Eigen::Vector3d( parms.xshift, parms.yshift, 0 ) );
 
-    bbox = kl.get_bbox();
-    paint_z_blue( "kl", kl );
-    paint_z_blue( "kr", kr );
-  //paint_z_red( kr );
+    if( l_bool )
+        bbox = k.get_bbox();
+    else if( r_bool )
+        bbox = k.get_bbox();
+    if( l_bool || r_bool )
+        printf( "z:[%.3f %.3f]\n", bbox.min[2], bbox.max[2] );
 
+    // make the hue variable
+    if( l_bool ) paint_z_blue( "kl", kl );
+    if( r_bool ) paint_z_blue( "kr", kr );
+
+    // render the objects in z-ascending order
     if( l_bool ) renderer_l.render_all_z_order( kl );
     if( r_bool ) renderer_r.render_all_z_order( kr );
+
 
     painter.end();
 #else
@@ -295,18 +314,17 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
 static void paint_z_blue( const char * /*label*/, BWCNC::PartContext & ktx )
 {
     BWCNC::Boundingbox bbox = ktx.get_bbox();
-    double range =  bbox.depth();
-    double least =  bbox.min[2];
+    double range =  1000; // bbox.depth();
+    double least =  -500; // bbox.min[2];
 
-    double global_zmin = 1000;
-    double global_zmax = -1000;
+    //double global_zmin = 1000;
+    //double global_zmax = -1000;
 
-    double z_avg;
-    double multiplier;
+    double multiplier = 1;
     int R, G, B;
 
-    double stats[10] = {0};
-    double cmd_stats[10] = {0};
+//  double stats[10] = {0};
+//  double cmd_stats[10] = {0};
 
     for( auto p : ktx.partlist )
     {
@@ -315,14 +333,14 @@ static void paint_z_blue( const char * /*label*/, BWCNC::PartContext & ktx )
             if( p->is_closed() )
             {
                 const BWCNC::Boundingbox bbox = p->get_bbox();
-                double z_avg = bbox.min[2] + bbox.depth()/2;
+              //double z_avg = bbox.min[2] + bbox.depth()/2;
                 double avg_z = bbox.avg()[2];
 
                 double multiplier = (avg_z - least)/range;
                 int R, G, B;
                 G = R =   32 + 64 * multiplier; // =  0;
                 B     =  255 * multiplier;
-
+#if 0
                 stats[0] += 1;
                 stats[1] += multiplier;
                 stats[3] += bbox.min[2];
@@ -330,9 +348,9 @@ static void paint_z_blue( const char * /*label*/, BWCNC::PartContext & ktx )
                 stats[5] += z_avg;
                 stats[6] += avg_z;
                 stats[7] += (z_avg - avg_z);
-
-                global_zmin = global_zmin < bbox.min[2] ? global_zmin : bbox.min[2];
-                global_zmax = global_zmax > bbox.max[2] ? global_zmax : bbox.max[2];
+#endif
+                //global_zmin = global_zmin < bbox.min[2] ? global_zmin : bbox.min[2];
+                //global_zmax = global_zmax > bbox.max[2] ? global_zmax : bbox.max[2];
 
 //                if( ++i % 1000 == 0 )
 //                printf( "least:%f range:%f min:%f depth:%f -> multiplier:%f [%d,%d,%d]\n",
@@ -345,7 +363,7 @@ static void paint_z_blue( const char * /*label*/, BWCNC::PartContext & ktx )
             {
                 if( cmd )
                 {
-                    z_avg = (cmd->begin[2] + cmd->end[2]) / 2;
+                    double z_avg = (cmd->begin[2] + cmd->end[2]) / 2;
                     //Eigen::Vector3d avg_v = (cmd->begin + cmd->end) / 2;
                     //multiplier = (avg_v[2] - least)/range;
                     multiplier = (z_avg - least)/range;
@@ -353,12 +371,13 @@ static void paint_z_blue( const char * /*label*/, BWCNC::PartContext & ktx )
                     B     =  255 * multiplier;
                     cmd->clr = BWCNC::Color( R, G, B );
 
-
+#if 0
                     cmd_stats[0] += 1;
                     cmd_stats[1] += z_avg;
                     cmd_stats[2] += cmd->begin[2];
                     cmd_stats[3] += cmd->end[2];
                     cmd_stats[4] += multiplier;
+#endif
                 }
             }
         }

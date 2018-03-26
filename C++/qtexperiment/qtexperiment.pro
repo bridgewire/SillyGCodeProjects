@@ -4,11 +4,17 @@
 #
 #-------------------------------------------------
 
+QMAKE_CC = clang
+QMAKE_CXX = clang++
+QMAKE_LINK = clang++
+
 QT       += core gui
-CONFIG   += c++11
+CONFIG   += c++11 debug
+#CONFIG   += c++11
 
 # profiler
 #QMAKE_CXXFLAGS_DEBUG += -pg
+QMAKE_CXXFLAGS_DEBUG += -O3
 #QMAKE_LFLAGS_DEBUG += -pg
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
@@ -44,6 +50,7 @@ SOURCES +=  $$LIBBWCNC_SRCPATH/boundingbox.cpp \
             $$LIBBWCNC_SRCPATH/numstring.cpp \
             $$LIBBWCNC_SRCPATH/part.cpp \
             $$LIBBWCNC_SRCPATH/renderer.cpp \
+            $$LIBBWCNC_SRCPATH/concurrent.cpp \
             $$LIBBWCNC_SRCPATH/qpixmaprenderer.cpp
 
 HEADERS  += $$LIBBWCNC_SRCPATH/boundingbox.h \
@@ -57,6 +64,7 @@ HEADERS  += $$LIBBWCNC_SRCPATH/boundingbox.h \
             $$LIBBWCNC_SRCPATH/renderer.h \
             $$LIBBWCNC_SRCPATH/qpixmaprenderer.h \
             $$LIBBWCNC_SRCPATH/stdtforms.h \
+            $$LIBBWCNC_SRCPATH/concurrent.h \
             $$LIBBWCNC_SRCPATH/bwcnc.h
 
 FORMS    += src/mainwindow.ui

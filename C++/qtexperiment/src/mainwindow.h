@@ -9,6 +9,7 @@
 #include <QTimer>
 #include <libbwcnc/qpixmaprenderer.h>
 #include <libbwcnc/part.h>
+#include <libbwcnc/concurrent.h>
 
 namespace Ui {
 class mainwindow;
@@ -28,6 +29,8 @@ public Q_SLOTS:
 
     void keyPressEvent(QKeyEvent*);
     void timer_event();
+    void set_threadcnt( int cnt ){ threadcnt = cnt; }
+    bool toggle_timer();
 
 protected:
     void refresh_selected_hexgrid();
@@ -39,11 +42,11 @@ protected:
     void create_hexgrid_cylinder();
     void refresh_hexgrid_cylinder();
 
-    bool toggle_timer();
-
 protected:
+    int threadcnt = -1; // default is: same as cpu count
     int tmr_interval_msec = 10;
     int ticks = 0;
+    double log_tick_stepsize = -2; //
     bool tmr_active = false;
     QTimer tmr;
     QGraphicsScene * scene = nullptr;
@@ -55,12 +58,15 @@ protected:
     bool n_bool = true;
     bool l_bool = true;
     bool r_bool = true;
+    bool f_bool = false; // flat
 
     bool b_cmd = false;
     bool is_fullscreenmode = false;
     BWCNC::PixmapRenderer hexes;
 
     BWCNC::PartContext kontext;
+    BWCNC::ShareableWorkQueueProcessor workers;
+
     bool kontext_isready = false;
 
 private:

@@ -42,7 +42,6 @@ void BWCNC::Part::copy_into( Part & p )
         {
             BWCNC::Command * newc = c->new_copy();
             p.cmds.push_back( newc );
-            //printf( "just now pushed a command back into a new part\n" );
         }
         else
             p.cmds.push_back( nullptr );
@@ -236,7 +235,7 @@ void BWCNC::Part::rotate( double angle, bool degrees /* = false */, int rotation
     transform( mat );
 }
 
-    // short and long names for  position_dependent_transform
+#if 0 // short and long names for  position_dependent_transform
 void BWCNC::Part::pos_dep_tform( mvf_t mvf, vvf_t vvf )
 {
     //bbox.pos_dep_tform( mvf, vvf );
@@ -255,7 +254,7 @@ void BWCNC::Part::pos_dep_tform( mvf_t mvf, vvf_t vvf )
     // use linear transforms whenever possible. they're much faster.
     remake_boundingbox();
 }
-
+#endif
     // short and long names for  position_dependent_transform
 void BWCNC::Part::pos_dep_tform( pdt_t * tform )
 {
@@ -293,15 +292,12 @@ void BWCNC::PartContext::copy_into( PartContext & k )
     k.bbox       = bbox;
     k.isnil      = isnil;
 
+    if( workers && ! k.workers )
+        k.workers = workers;
+
     for( auto p : partlist )
-    {
         if( p )
-        {
-            BWCNC::Part * newp = p->new_copy();
-            k.partlist.push_back( newp );
-            //printf( "just now pushed a part back into a new part-context\n" );
-        }
-    }
+            k.partlist.push_back( p->new_copy() );
 }
 
 void BWCNC::PartContext::translate(  const Eigen::Vector3d & offset )
@@ -309,23 +305,42 @@ void BWCNC::PartContext::translate(  const Eigen::Vector3d & offset )
     firstpoint += offset;
     bbox.translate( offset );
 
-    for( auto prt : partlist )
-        if( prt )
-            prt->translate( offset );
+    if( workers && workers->threads_running() )
+    {
+        ShareableWorkQueue sw_queue( partlist );
+        ShareableWorkProcessor_translate sw_p( offset );
+        workers->run_shareable_job( &sw_queue, &sw_p );
+    }
+    else
+    {
+        for( auto prt : partlist )
+            if( prt )
+                prt->translate( offset );
+    }
 }
 
 void BWCNC::PartContext::transform( const Eigen::Matrix3d & mat, bool update_bbox )
 {
     firstpoint = mat * firstpoint;
 
-    for( auto prt : partlist )
-        if( prt )
-            prt->transform( mat, update_bbox );
+    if( workers && workers->threads_running() )
+    {
+        ShareableWorkQueue sw_queue( partlist );
+        ShareableWorkProcessor_transform sw_p( mat );
+        workers->run_shareable_job( &sw_queue, &sw_p );
+    }
+    else
+    {
+        for( auto prt : partlist )
+            if( prt )
+                prt->transform( mat, update_bbox );
+    }
 
     if( update_bbox )
         reunion_boundingbox();
 }
 
+#if 0
 void BWCNC::PartContext::scale( const double scalar )
 {
     firstpoint = scalar * firstpoint;
@@ -335,7 +350,14 @@ void BWCNC::PartContext::scale( const double scalar )
         if( prt )
             prt->scale( scalar );
 }
-
+#else
+void BWCNC::PartContext::scale( const double scalar )
+{
+    bbox.scale( scalar );
+    firstpoint = scalar * firstpoint;
+    transform( scalar * Eigen::Matrix3d::Identity(), false );
+}
+#endif
 
 void BWCNC::PartContext::rotate( double angle, bool degrees /* = false */, int rotationaxis /* = 3 */ )
 {
@@ -354,6 +376,7 @@ void BWCNC::PartContext::rotate( double angle, bool degrees /* = false */, int r
     transform( mat );
 }
 
+#if 0
 void BWCNC::PartContext::pos_dep_tform( mvf_t mvf, vvf_t vvf )
 {
     BWCNC::pos_dep_tform( mvf, vvf, firstpoint );
@@ -362,14 +385,25 @@ void BWCNC::PartContext::pos_dep_tform( mvf_t mvf, vvf_t vvf )
             prt->pos_dep_tform( mvf, vvf );
     reunion_boundingbox();
 }
-
+#endif
 
 void BWCNC::PartContext::pos_dep_tform( pdt_t * tform )
 {
     BWCNC::pos_dep_tform( tform, firstpoint );
-    for( auto prt : partlist )
-        if( prt )
-            prt->pos_dep_tform( tform );
+
+    if( workers && workers->threads_running() )
+    {
+        ShareableWorkQueue sw_queue( partlist );
+        ShareableWorkProcessor_pdt_processor sw_p( tform );
+        workers->run_shareable_job( &sw_queue, &sw_p );
+    }
+    else
+    {
+        for( auto prt : partlist )
+            if( prt )
+                prt->pos_dep_tform( tform );
+    }
+
     reunion_boundingbox();
 }
 

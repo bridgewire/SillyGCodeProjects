@@ -8,6 +8,7 @@
 #include "command.h"
 #include "functions.h"
 #include "renderer.h"
+#include "concurrent.h"
 
 
 namespace BWCNC {
@@ -52,9 +53,9 @@ public:
     virtual void rotate( double angle, bool degrees = false, int rotationaxis = 3 );
 
     // short and long names for  position_dependent_transform
-    virtual void pos_dep_tform( mvf_t mvf, vvf_t vvf );
+  //virtual void pos_dep_tform( mvf_t mvf, vvf_t vvf );
     virtual void pos_dep_tform( pdt_t * tform );
-    virtual void position_dependent_transform( mvf_t mvf, vvf_t vvf ) { pos_dep_tform( mvf, vvf ); }
+  //virtual void position_dependent_transform( mvf_t mvf, vvf_t vvf ) { pos_dep_tform( mvf, vvf ); }
     virtual void position_dependent_transform( pdt_t * tform ) { pos_dep_tform( tform ); }
 
     virtual void remake_boundingbox();
@@ -119,10 +120,10 @@ public:
     virtual void rotate( double angle, bool degrees = false, int rotationaxis = 3 );
 
     // short and long names for  position_dependent_transform
-    virtual void pos_dep_tform( mvf_t mvf, vvf_t vvf );
+  //virtual void pos_dep_tform( mvf_t mvf, vvf_t vvf );
     virtual void pos_dep_tform( pdt_t * tform );
 
-    virtual void position_dependent_transform( mvf_t mvf, vvf_t vvf ) { pos_dep_tform( mvf, vvf ); }
+  //virtual void position_dependent_transform( mvf_t mvf, vvf_t vvf ) { pos_dep_tform( mvf, vvf ); }
     virtual void position_dependent_transform( pdt_t * tform )        { pos_dep_tform( tform ); }
 
     virtual void remake_boundingbox();  // this forces all parts to also remake their bounding boxes
@@ -163,6 +164,11 @@ public:
     std::multimap<double, BWCNC::Part *> partlist_z_ascending;
 
     void refresh_z_ascending();
+
+protected:
+    BWCNC::ShareableWorkQueueProcessor * workers = nullptr;
+public:
+    void setup_shareable_workers( BWCNC::ShareableWorkQueueProcessor * w ) { workers = w; }
 };
 
 typedef enum {
