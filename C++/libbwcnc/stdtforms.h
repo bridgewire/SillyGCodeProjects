@@ -49,7 +49,7 @@ public:
 
       //z = -10 * (x+y > 0 ? 1 : -1) * :: pow( 1/shiftdist, 1.0/3 );
       //z = (x+y > 0 ? 1 : -1) * ::pow( 1/shiftdist, 1.0/3 );
-        z =  20 * (x+y > 0 ? 1 : -1) * ::pow( 1/shiftdist, 1.0/3 );
+        z =  10 * (x+y > 0 ? 1 : -1) * ::pow( 1/shiftdist, 1.0/3 );
       //z =  ::pow( 1/shiftdist, 1.0/3 );
       //printf( "%f\n", 20 * (x+y > 0 ? 1 : -1) * ::pow( 1/shiftdist, 1.0/3 )  );
 
