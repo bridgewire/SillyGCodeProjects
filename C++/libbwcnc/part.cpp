@@ -155,7 +155,7 @@ void BWCNC::Part::moveto( const Eigen::Vector3d & to, bool vecfromcur /* = false
 
 
 
-bool BWCNC::Part::reposition( const Eigen::Vector3d & pos )
+bool BWCNC::Part::reposition( const Eigen::Vector3d & pos, BWCNC::Part * newpart )
 {
     bool doit = false;
     for( int i = 0; ! doit && i < 3; i++ )
@@ -166,47 +166,66 @@ bool BWCNC::Part::reposition( const Eigen::Vector3d & pos )
         }
 
     if( doit )
-        this->translate( pos - start );
+        this->translate( pos - start, newpart );
+    else if( newpart )
+        copy_into( *newpart );
 
     return doit;
 }
 
-void BWCNC::Part::translate(  const Eigen::Vector3d & offst )
+void BWCNC::Part::translate( const Eigen::Vector3d & offst, BWCNC::Part * newpart )
 {
-    bbox.translate(offst);
+    if( newpart )
+    {
+        copy_into( *newpart );
+        newpart->translate( offst );
+    }
+    else
+    {
+        bbox.translate(offst);
 
-    start  += offst;
-    curpos += offst;
+        start  += offst;
+        curpos += offst;
 
-    for( auto cmd : cmds )
-        if( cmd )
-            cmd->translate( offst );
+        for( auto cmd : cmds )
+            if( cmd )
+                cmd->translate( offst );
+    }
 }
  // linear transform
-void BWCNC::Part::transform( const Eigen::Matrix3d & mat, bool remake_bbox )
+
+void BWCNC::Part::transform( const Eigen::Matrix3d & mat, BWCNC::Part * newpart, bool remake_bbox )
 {
-    Boundingbox newbbox;
-
-    start  = mat * start;
-    curpos = mat * curpos;
-
-    for( auto cmd : cmds )
+    if( newpart )
     {
-        if( cmd )
+        copy_into( *newpart );
+        newpart->transform( mat, nullptr, remake_bbox );
+    }
+    else
+    {
+        Boundingbox newbbox;
+
+        start  = mat * start;
+        curpos = mat * curpos;
+
+        for( auto cmd : cmds )
         {
-            cmd->transform(  mat );
-            if( remake_bbox )
+            if( cmd )
             {
-                newbbox.update_bounds( cmd->begin );
-                newbbox.update_bounds( cmd->end );
+                cmd->transform( mat );
+                if( remake_bbox )
+                {
+                    newbbox.update_bounds( cmd->begin );
+                    newbbox.update_bounds( cmd->end );
+                }
             }
         }
-    }
 
-    if( remake_bbox )
-        bbox = newbbox;
+        if( remake_bbox )
+            bbox = newbbox;
+    }
 }
-void BWCNC::Part::scale( const double scalar )
+void BWCNC::Part::scale( const double scalar, BWCNC::Part * newpart )
 {
     Eigen::Matrix3d mat = scalar * Eigen::Matrix3d::Identity();
 
@@ -215,15 +234,17 @@ void BWCNC::Part::scale( const double scalar )
     start  = mat * start;
     curpos = mat * curpos;
 
-    transform( mat, false );
+    transform( mat, newpart, false );
 }
 
-void BWCNC::Part::rotate( double angle, bool degrees /* = false */, int rotationaxis /* = 3 */ )
+
+void BWCNC::Part::rotate_deg( double angle, BWCNC::Part * newpart /*= nullptr*/, int rotationaxis /*= 3*/ )
+{
+    rotate( angle * M_PI / 180.0, newpart, rotationaxis );
+}
+void BWCNC::Part::rotate( double radians, BWCNC::Part * newpart /*= nullptr*/, int rotationaxis /*= 3*/ )
 {
     Eigen::Matrix3d mat;
-    double radians = angle;
-    if( degrees )
-        radians = angle * M_PI / 180.0;
     switch( rotationaxis )
     {
     case 1: mat << 1,0,0,  0,::cos(radians),-::sin(radians),  0,::sin(radians),::cos(radians);  break;
@@ -232,7 +253,7 @@ void BWCNC::Part::rotate( double angle, bool degrees /* = false */, int rotation
     default: throw "invalid axis specified";   break;
     }
 
-    transform( mat );
+    transform( mat, newpart );
 }
 
 #if 0 // short and long names for  position_dependent_transform
@@ -256,25 +277,78 @@ void BWCNC::Part::pos_dep_tform( mvf_t mvf, vvf_t vvf )
 }
 #endif
     // short and long names for  position_dependent_transform
-void BWCNC::Part::pos_dep_tform( pdt_t * tform )
+
+void BWCNC::Part::pos_dep_tform( pdt_t * tform, BWCNC::Part * newpart )
 {
-    //bbox.pos_dep_tform( tform );
+    if( newpart )
+    {
+        copy_into( *newpart );
+        newpart->pos_dep_tform( tform, nullptr );
+    }
+    else
+    {
+        BWCNC::pos_dep_tform( tform, start );
+        BWCNC::pos_dep_tform( tform, curpos );
 
-    BWCNC::pos_dep_tform( tform, start );
-    BWCNC::pos_dep_tform( tform, curpos );
+        for( auto cmd : cmds )
+            if( cmd )
+                cmd->pos_dep_tform( tform );
+#if 0
+        bool is_ok = false;
+        double a = area( is_ok );
+        if( is_ok )
+        {
+            int z_cnt = 0;
+            double avg_z = 0;
+            for( auto cmd : cmds )
+            {
+                if( cmd )
+                {
+                    avg_z += cmd->begin[2];
+                    z_cnt++;
+                }
+            }
 
-    for( auto cmd : cmds )
-        if( cmd )
-            cmd->pos_dep_tform( tform );
+            if( z_cnt )
+                avg_z /= z_cnt;
 
-    // position-dependent transforms aren't linear, which is to say that they
-    // can strech and deform the part so strangely that points which were
-    // internal become external and thus become part of the new edge. because
-    // of this, the bounding box must be remade entirely after every pdt.
-    // use linear transforms whenever possible. they're much faster.
-    remake_boundingbox();
+            for( auto cmd : cmds )
+                if( cmd )
+                    cmd->end[2] = cmd->begin[2] = (a+100)/10;
+        }
+#endif
+        // position-dependent transforms aren't linear, which is to say that they
+        // can strech and deform the part so strangely that points which were
+        // internal become external and thus become part of the new edge. because
+        // of this, the bounding box must be remade entirely after every pdt.
+        // use linear transforms whenever possible. they're much faster.
+        remake_boundingbox();
+    }
 }
 
+// see http://mathworld.wolfram.com/PolygonArea.html for info about this algorithm
+double BWCNC::Part::area( bool & is_ok )
+{
+    if( ! isclosed )
+    {
+        is_ok = false;
+        return 0;
+    }
+
+    is_ok = true;
+
+    double det_sum = 0;
+    for( auto cmd : cmds )
+    {
+        Eigen::Matrix2d A;
+        A << cmd->begin[0], cmd->end[0],
+             cmd->begin[1], cmd->end[1];
+
+        det_sum += A.determinant();
+    }
+
+    return fabs(det_sum/2);
+}
 
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -333,7 +407,7 @@ void BWCNC::PartContext::transform( const Eigen::Matrix3d & mat, bool update_bbo
     {
         for( auto prt : partlist )
             if( prt )
-                prt->transform( mat, update_bbox );
+                prt->transform( mat, nullptr, update_bbox );
     }
 
     if( update_bbox )
@@ -359,12 +433,13 @@ void BWCNC::PartContext::scale( const double scalar )
 }
 #endif
 
-void BWCNC::PartContext::rotate( double angle, bool degrees /* = false */, int rotationaxis /* = 3 */ )
+void BWCNC::PartContext::rotate_deg( double angle, int rotationaxis /*= 3*/ )
+{
+    rotate( angle * M_PI / 180.0, rotationaxis );
+}
+void BWCNC::PartContext::rotate( double radians, int rotationaxis /*= 3*/ )
 {
     Eigen::Matrix3d mat;
-    double radians = angle;
-    if( degrees )
-        radians = angle * M_PI / 180.0;
     switch( rotationaxis )
     {
     case 1: mat << 1,0,0,  0,::cos(radians),-::sin(radians),  0,::sin(radians),::cos(radians);  break;

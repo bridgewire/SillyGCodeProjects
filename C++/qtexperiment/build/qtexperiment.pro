@@ -22,13 +22,14 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 TARGET = qtcreatortest
 TEMPLATE = app
 
-DESTDIR = $$PWD/build
-OBJECTS_DIR = $$PWD/build/.obj
-SRCPATH = $$PWD/src
-LIBBWCNC_SRCPATH = $$PWD/../libbwcnc
+DESTDIR = $$PWD
+OBJECTS_DIR = $$PWD/.obj
+MOC_DIR = $$PWD/.moc
+SRCPATH = $$PWD/../src
+LIBBWCNC_SRCPATH = $$PWD/../../libbwcnc
 
 INCLUDEPATH += /usr/include/eigen3 \
-               $$PWD/..
+               $$PWD/../../
 
 #               $$LIBBWCNC_SRCPATH
 
@@ -67,5 +68,5 @@ HEADERS  += $$LIBBWCNC_SRCPATH/boundingbox.h \
             $$LIBBWCNC_SRCPATH/concurrent.h \
             $$LIBBWCNC_SRCPATH/bwcnc.h
 
-FORMS    += src/mainwindow.ui
+FORMS    += ../src/mainwindow.ui
 

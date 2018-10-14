@@ -44,27 +44,19 @@ public:
     virtual void render( BWCNC::Renderer * r ) = 0;
 
     // move part in the direction of the Vector argument: offset
-    virtual void translate( const Eigen::Vector3d & offset )
-    {
-        begin += offset;
-        end   += offset;
-    }
+    virtual void translate( const Eigen::Vector3d & offset, Command * into = nullptr );
 
     // translate part so that @start becomes equal to new_position
-    virtual void reposition( const Eigen::Vector3d & new_position ){ translate( new_position - begin ); } 
+    virtual void reposition( const Eigen::Vector3d & new_position, Command * into = nullptr );
 
     // general linear transform
     // arg: mat  ...  type 3x3 numeric Matrix
-    virtual void transform( const Eigen::Matrix3d & mat )
-    {
-      begin = mat * begin;
-      end   = mat * end;
-    }
+    virtual void transform( const Eigen::Matrix3d & mat, Command * into = nullptr );
 
-    virtual void pos_dep_tform( mvf_t mvf, vvf_t vvf );
-    virtual void pos_dep_tform( pdt_t * tform );
-    virtual void position_dependent_transform( mvf_t mvf, vvf_t vvf ) { pos_dep_tform( mvf, vvf ); }
-    virtual void position_dependent_transform( pdt_t * tform ) { pos_dep_tform( tform ); }
+    virtual void pos_dep_tform( const mvf_t mvf, const vvf_t vvf );
+    virtual void pos_dep_tform( const pdt_t * tform );
+    virtual void position_dependent_transform( const mvf_t mvf, const vvf_t vvf ) { pos_dep_tform( mvf, vvf ); }
+    virtual void position_dependent_transform( const pdt_t * tform )              { pos_dep_tform( tform ); }
 
     virtual Command * new_copy() const = 0;
 

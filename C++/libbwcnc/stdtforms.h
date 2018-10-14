@@ -9,17 +9,18 @@ public:
     const double ticks = 0;
     const double w = 1/(3*M_PI);
     const double shiftscale = 7;
+    const double param = 1;
 public:
-    crosshatchwaves( double T = 0, double W = 1/(3*M_PI), double S = 7 )
-        : position_dependent_transform_t(false, true), ticks(T), w(W), shiftscale(S)
+    crosshatchwaves( double T = 0, double W = 1/(3*M_PI), double S = 7, double P = 1 )
+        : position_dependent_transform_t(false, true), ticks(T), w(W), shiftscale(S), param(P)
     {}
     virtual ~crosshatchwaves(){}
 
-    const BWCNC::Color    cvf( const Eigen::Vector3d &   ) { return BWCNC::Color(); }
-    const Eigen::Matrix3d mvf( const Eigen::Vector3d &   ) { return Eigen::Matrix3d::Identity(); }
-    const Eigen::Vector3d vvf( const Eigen::Vector3d & v )
+    const BWCNC::Color    cvf( const Eigen::Vector3d &   ) const { return BWCNC::Color(); }
+    const Eigen::Matrix3d mvf( const Eigen::Vector3d &   ) const { return Eigen::Matrix3d::Identity(); }
+    const Eigen::Vector3d vvf( const Eigen::Vector3d & v ) const
     {
-        double x, y, z;
+        double x, y, z=0;
 #if 0
         x =  ::sin(w*(v[1]+ticks));
         y =  ::sin(w*(v[0]-ticks));
@@ -39,6 +40,7 @@ public:
                       + ticks
                      ));
 
+#if 1
 #if 0
       //z =  10 * (::cos(x*M_PI/2) - ::cos(y*M_PI/2));
         z = -10 * (::sin(x - y) + ::cos(y - x));
@@ -53,6 +55,13 @@ public:
       //z =  ::pow( 1/shiftdist, 1.0/3 );
       //printf( "%f\n", 20 * (x+y > 0 ? 1 : -1) * ::pow( 1/shiftdist, 1.0/3 )  );
 
+        // limit the z result
+        //double b = 20;
+        //z = z >  b ?  b : z;
+        //z = z < -b ? -b : z;
+
+        z = (1 - param)*z + param * (-10 * (::sin(x - y) + ::cos(y - x)));
+#endif
 #endif
 #endif
         return shiftscale * Eigen::Vector3d( x, y, z );
@@ -73,17 +82,19 @@ public:
 
     virtual ~leftrighteye3D(){}
 
-    const BWCNC::Color    cvf( const Eigen::Vector3d &   ) { return BWCNC::Color(); }
-    const Eigen::Matrix3d mvf( const Eigen::Vector3d &   ) { return Eigen::Matrix3d::Identity(); }
-    const Eigen::Vector3d vvf( const Eigen::Vector3d & p )
+    const BWCNC::Color    cvf( const Eigen::Vector3d &   ) const { return BWCNC::Color(); }
+    const Eigen::Matrix3d mvf( const Eigen::Vector3d &   ) const { return Eigen::Matrix3d::Identity(); }
+    const Eigen::Vector3d vvf( const Eigen::Vector3d & p ) const
     {
 #if 1
         Eigen::Vector3d v = p - eye;
+      //Eigen::Vector3d v = eye - p;
         Eigen::Vector3d u = v;
         double s          = -eye[2]/v[2];
         u[2]              = -eye[2];
-        Eigen::Vector3d c = s*v - u;
-        return c;
+      //Eigen::Vector3d c = s*v - u;
+      //return c;
+        return              s*v - u;
 #else
         Eigen::Vector3d v = p - eye;
         return Eigen::Vector3d( (eye[2] * -v[0]/v[2]) + eye[0] - p[0],0,0);
@@ -102,9 +113,9 @@ public:
     double theta_max = 10;
     double L_mm = 100;
 public:
-    const BWCNC::Color    cvf( const Eigen::Vector3d & ) { return BWCNC::Color(); }
-    const Eigen::Matrix3d mvf( const Eigen::Vector3d & ) { return (z_shift/2 + 1) * Eigen::Matrix3d::Identity(); }
-    const Eigen::Vector3d vvf( const Eigen::Vector3d & )
+    const BWCNC::Color    cvf( const Eigen::Vector3d & ) const { return BWCNC::Color(); }
+    const Eigen::Matrix3d mvf( const Eigen::Vector3d & ) const { return (z_shift/2 + 1) * Eigen::Matrix3d::Identity(); }
+    const Eigen::Vector3d vvf( const Eigen::Vector3d & ) const
     {
       //double t = theta_max * ::sin( ::sqrt(9.86/(L_mm/1000)) * ticks );
         return Eigen::Vector3d(0, 0, z_shift);

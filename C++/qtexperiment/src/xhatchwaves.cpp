@@ -14,8 +14,9 @@
 //using namespace BWCNC;
 
 static int cols = 40; //108; // 58;
-static int rows = round(1.13 * cols * 1080 / 2048.0);
-static double s = 8 * 58.0 / cols;
+static int rows = round(1.13 * cols / mainwindow::frame_aspect_ratio()); //1080 / 2048.0);
+//static double s = 8 * 58.0 / cols;
+static double s = 8 * 40.0 / cols;
 
 static struct cmdline_params {
     int cols;
@@ -94,9 +95,9 @@ void render_eye_perspective( BWCNC::PartContext & k, double scene_width, double 
     if( isleft )
         leftright_tform.eye[0] *= -1;
 
-    Eigen::Vector3d back2;
 #endif
 
+    //Eigen::Vector3d back2;
     //shift2( k, BWCNC::to_center, BWCNC::to_center, BWCNC::to_none, &back2 );
     k.translate( Eigen::Vector3d( -scene_width/2, -scene_height/2, 0 ) );
     k.position_dependent_transform( &leftright_tform );
@@ -150,7 +151,9 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
     crosshatchwaves chw_tform(
             (ticks + parms.ticks_start) * parms.tick_size, // ticks
             (a_value - 499)/(M_PI * 100),                  // omega
-            (b_value - 499)/50.0 );                        // scaler
+            (b_value - 499)/50.0,                          // scaler
+            z_param );
+
 
     if( (ticks + parms.ticks_start) % 1000 == 0 )
         printf( "ticks == %d\n", ticks + parms.ticks_start );
@@ -167,25 +170,36 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
 
   //k.translate( Eigen::Vector3d( 0, 0, parms.zshift ) );
 
+#if 1
     double zoomscale =    (1 - ::exp( -(ticks * parms.tick_size / 10) ));
-    parms.zshift = -w*(1 - zoomscale);
+    parms.zshift = -w*(1 - zoomscale) + z_shift;
     parms.xshift =  w*(1 - zoomscale)/2 + 150*zoomscale;
     parms.yshift =  h*(1 - zoomscale)/2 + 100*zoomscale;
-
-
-#if 0
-    BWCNC::Boundingbox bbox = k.get_bbox();
-    parms.scale = 1.5 * w / bbox.width();
 #else
-    k.scale( parms.scale );
+    parms.zshift = -200;
+  //parms.zshift = 1000*(sin((double)ticks/10.0) - 1);
+  //printf( "\rzshift: 1000*(sin((double)%5d/10.0) - 1) == %14.6f", ticks, parms.zshift );
+  //parms.zshift = (ticks % 2000) - 1500;
+    parms.xshift = 150;
+    parms.yshift = 100;
 #endif
 
+
+    parms.scale = .75 * w / bbox.width();
+    k.scale( parms.scale );
+    k.translate( Eigen::Vector3d( 0, 0, parms.zshift ) );
+
     painter.begin(&img);
+
+    // make the hue variable
+    paint_z_blue( "k", k );
+    //if( r_bool ) paint_z_blue( "kr", kr );
 
 #if 1
     if( l_bool ) k.copy_into( kl );
     if( r_bool ) k.copy_into( kr );
 
+#if 0
     // shift the image/grid toward the center of the image
 #if 1
     if( l_bool ) kl.translate( Eigen::Vector3d( 0, 0, parms.zshift ) );
@@ -197,6 +211,7 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
     parms.zshift = 0;
     kl.translate( Eigen::Vector3d( parms.xshift, parms.yshift, parms.zshift ) );
     kr.translate( Eigen::Vector3d( parms.xshift, parms.yshift, parms.zshift ) );
+#endif
 #endif
 
 
@@ -210,16 +225,14 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
     if( l_bool ) kl.translate( Eigen::Vector3d( parms.xshift, parms.yshift, 0 ) );
     if( r_bool ) kr.translate( Eigen::Vector3d( parms.xshift, parms.yshift, 0 ) );
 
+#if 0
     if( l_bool )
         bbox = k.get_bbox();
     else if( r_bool )
         bbox = k.get_bbox();
     if( l_bool || r_bool )
         printf( "z:[%.3f %.3f]\n", bbox.min[2], bbox.max[2] );
-
-    // make the hue variable
-    if( l_bool ) paint_z_blue( "kl", kl );
-    if( r_bool ) paint_z_blue( "kr", kr );
+#endif
 
     // render the objects in z-ascending order
     if( l_bool ) renderer_l.render_all_z_order( kl );
@@ -314,14 +327,17 @@ void mainwindow::refresh_hexgrid_xhatchwaves()
 static void paint_z_blue( const char * /*label*/, BWCNC::PartContext & ktx )
 {
     BWCNC::Boundingbox bbox = ktx.get_bbox();
+#if 1
     double range =  1000; // bbox.depth();
     double least =  -500; // bbox.min[2];
+#else
+    double range = bbox.depth(); //10.0; // 1000;
+    double least = bbox.min[2]; // -500;
+    double most  = bbox.max[2]; // -500;
+#endif
 
     //double global_zmin = 1000;
     //double global_zmax = -1000;
-
-    double multiplier = 1;
-    int R, G, B;
 
 //  double stats[10] = {0};
 //  double cmd_stats[10] = {0};
@@ -336,28 +352,36 @@ static void paint_z_blue( const char * /*label*/, BWCNC::PartContext & ktx )
               //double z_avg = bbox.min[2] + bbox.depth()/2;
                 double avg_z = bbox.avg()[2];
 
+#if 1
                 double multiplier = (avg_z - least)/range;
                 int R, G, B;
                 G = R =   32 + 64 * multiplier; // =  0;
                 B     =  255 * multiplier;
-#if 0
-                stats[0] += 1;
-                stats[1] += multiplier;
-                stats[3] += bbox.min[2];
-                stats[4] += bbox.depth();
-                stats[5] += z_avg;
-                stats[6] += avg_z;
-                stats[7] += (z_avg - avg_z);
+#else
+                int R, G, B;
+                if( range > 1e-9 )
+                {
+                    multiplier = (avg_z - least)/range;
+                    G = R =   8 + 64*multiplier; // =  0;
+                  //G = R =   32;
+                    B     =  255*multiplier;
+                }
+                else
+                {
+                    G = R =   32;
+                    B     =  128; // an average value
+                }
 #endif
-                //global_zmin = global_zmin < bbox.min[2] ? global_zmin : bbox.min[2];
-                //global_zmax = global_zmax > bbox.max[2] ? global_zmax : bbox.max[2];
-
-//                if( ++i % 1000 == 0 )
-//                printf( "least:%f range:%f min:%f depth:%f -> multiplier:%f [%d,%d,%d]\n",
-//                        least, range, bbox.min[2], bbox.depth(), multiplier, R, G, B );
-
+#if 0
+                if( avg_z < 0 )
+                {
+                    G = B =    8 + 64 * multiplier; // =  0;
+                    R     =  255 * multiplier;
+                }
+#endif
                 for( auto cmd : p->cmds ) if( cmd ) cmd->clr = BWCNC::Color( R, G, B );
             }
+#if 0
             else
                 for( auto cmd : p->cmds )
             {
@@ -370,16 +394,9 @@ static void paint_z_blue( const char * /*label*/, BWCNC::PartContext & ktx )
                     G = R =   32 + 64 * multiplier; // =  0;
                     B     =  255 * multiplier;
                     cmd->clr = BWCNC::Color( R, G, B );
-
-#if 0
-                    cmd_stats[0] += 1;
-                    cmd_stats[1] += z_avg;
-                    cmd_stats[2] += cmd->begin[2];
-                    cmd_stats[3] += cmd->end[2];
-                    cmd_stats[4] += multiplier;
-#endif
                 }
             }
+#endif
         }
     }
 

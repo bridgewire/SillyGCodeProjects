@@ -25,7 +25,8 @@ mainwindow::mainwindow( QWidget *parent)
   //void QAbstractSlider::valueChanged(int value)
 
   //scene = new QGraphicsScene( 0, 0, 1560, 860, this );
-    scene = new QGraphicsScene( 0, 0, 2048/2, 1080/2, this );
+  //scene = new QGraphicsScene( 0, 0, 2048/2, 1080/2, this );
+    scene = new QGraphicsScene( 0, 0, mainwindow::frame_size_x(), mainwindow::frame_size_y(), this );
     ui->graphicsView->setScene( scene ); //QGraphicsView
 
     QPixmap pxmp;
@@ -87,7 +88,6 @@ void mainwindow::keyPressEvent( QKeyEvent * e )
         break;
     case Qt::Key_T:
         toggle_timer();
-        printf( "ticks: %d\n", ticks );
         break;
     case Qt::Key_Plus:
     case Qt::Key_Equal:
@@ -136,6 +136,62 @@ void mainwindow::keyPressEvent( QKeyEvent * e )
         break;
     case Qt::Key_S:
         ticks += 100;
+        break;
+    case Qt::Key_V:
+        z_param += .01 * ((e->modifiers() & Qt::ShiftModifier) ? 1 : -1);
+        if(      z_param > 1 ) z_param = 1;
+        else if( z_param < 0 ) z_param = 0;
+        break;
+    case Qt::Key_Z:
+        z_shift += ((e->modifiers() & Qt::ShiftModifier) ? 10 : -10);
+        break;
+    case Qt::Key_H:
+    case Qt::Key_Question:
+        printf( "-----------------------\n" );
+        printf( "Q       :: quit\n" );
+        printf( "Esc     :: quit\n" );
+        printf( "S       :: add 100 to ticks\n" );
+        printf( "T       :: toggle timer\n" );
+        printf( "+/=     :: increase exp(tick_stepsize)\n" );
+        printf( "-       :: decrease exp(tick_stepsize)\n" );
+        printf( "f       :: toggle flat perspectiv\n" );
+        printf( "r       :: toggle right-eye frame visibility\n" );
+        printf( "l       :: toggle left-eye frame visibility\n" );
+        printf( "n       :: toggle negative z visibility\n" );
+        printf( "p       :: toggle positive z visibility\n" );
+        printf( "z       :: decrease z shift\n" );
+        printf( "Z       :: increase z shift\n" );
+//      printf( "b       :: set b_cmd == true\n" );
+        printf( "[0-9]   :: ticks = [0-9]*1000\n" );
+        printf( "F11     :: make a futile attempt at full-screen toggle\n" );
+        printf( "-----------------------\n" );
+        break;
+    case Qt::Key_0: ticks = 0;  break;
+    case Qt::Key_1: ticks = 1000;  break;
+    case Qt::Key_2: ticks = 2000;  break;
+    case Qt::Key_3: ticks = 3000;  break;
+    case Qt::Key_4: ticks = 4000;  break;
+    case Qt::Key_5: ticks = 5000;  break;
+    case Qt::Key_6: ticks = 6000;  break;
+    case Qt::Key_7: ticks = 7000;  break;
+    case Qt::Key_8: ticks = 8000;  break;
+    case Qt::Key_9: ticks = 9000;  break;
+    }
+
+    switch( e->key() )
+    {
+    case Qt::Key_T:
+    case Qt::Key_S:
+    case Qt::Key_0:
+    case Qt::Key_1:
+    case Qt::Key_2:
+    case Qt::Key_3:
+    case Qt::Key_4:
+    case Qt::Key_5:
+    case Qt::Key_6:
+    case Qt::Key_7:
+    case Qt::Key_8:
+    case Qt::Key_9:
         printf( "ticks: %d\n", ticks );
         break;
     }

@@ -46,17 +46,18 @@ public:
             for( auto cmd : cmds ) if( cmd ) cmd->render( r );
     }
 
-    virtual bool reposition( const Eigen::Vector3d & pos   );
-    virtual void translate(  const Eigen::Vector3d & offst );
-    virtual void transform(  const Eigen::Matrix3d & mat, bool remake_bbox = true );
-    virtual void scale(      const double scalar );
-    virtual void rotate( double angle, bool degrees = false, int rotationaxis = 3 );
+    virtual bool reposition( const Eigen::Vector3d & pos,   BWCNC::Part * newpart = nullptr );
+    virtual void translate(  const Eigen::Vector3d & offst, BWCNC::Part * newpart = nullptr );
+    virtual void transform(  const Eigen::Matrix3d & mat,   BWCNC::Part * newpart = nullptr, bool remake_bbox = true );
+    virtual void scale(      const double scalar,           BWCNC::Part * newpart = nullptr );
+    virtual void rotate_deg( double angle, BWCNC::Part * newpart = nullptr, int rotationaxis = 3 ); // rotate degrees
+    virtual void rotate(     double angle, BWCNC::Part * newpart = nullptr, int rotationaxis = 3 ); // rotate radians
 
     // short and long names for  position_dependent_transform
   //virtual void pos_dep_tform( mvf_t mvf, vvf_t vvf );
-    virtual void pos_dep_tform( pdt_t * tform );
+    virtual void pos_dep_tform( pdt_t * tform, BWCNC::Part * newpart = nullptr );
   //virtual void position_dependent_transform( mvf_t mvf, vvf_t vvf ) { pos_dep_tform( mvf, vvf ); }
-    virtual void position_dependent_transform( pdt_t * tform ) { pos_dep_tform( tform ); }
+    virtual void position_dependent_transform( pdt_t * t, BWCNC::Part * p = nullptr ) { pos_dep_tform( t, p ); }
 
     virtual void remake_boundingbox();
 
@@ -72,6 +73,9 @@ public:
     virtual BWCNC::Boundingbox get_bbox(){ return bbox; }
     virtual const BWCNC::Boundingbox & get_bbox() const { return bbox; }
     virtual bool is_closed(){ return isclosed; }
+
+    // a closed 2D part has an area
+    virtual double area( bool & is_ok );
 
 protected:
     virtual void update_position( const Eigen::Vector3d & pos );
@@ -117,7 +121,8 @@ public:
     virtual void translate(  const Eigen::Vector3d & pos );
     virtual void transform(  const Eigen::Matrix3d & mat, bool update_bbox = true );
     virtual void scale( const double scalar );
-    virtual void rotate( double angle, bool degrees = false, int rotationaxis = 3 );
+    virtual void rotate_deg( double angle, int rotationaxis = 3 );
+    virtual void rotate( double radians, int rotationaxis = 3 );
 
     // short and long names for  position_dependent_transform
   //virtual void pos_dep_tform( mvf_t mvf, vvf_t vvf );

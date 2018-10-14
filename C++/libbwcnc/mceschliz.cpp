@@ -64,25 +64,25 @@ void BWCNC::LizardGrid::make_toe2toe_down_through_cheeks( BWCNC::PartContext & k
     BWCNC::Part * part = nullptr;
 
     part = make_toes_atom();
-    part->rotate( -60, true );
+    part->rotate_deg( -60 );
     k.append_part( part );
 
     part = make_cheek_atom( true );
-    part->rotate( 180, true );
+    part->rotate_deg( 180 );
     k.append_part( part );
 
     part = make_cheek_atom();
-    part->rotate( 60, true );
+    part->rotate_deg( 60 );
     k.append_part( part );
 
     part = make_toes_atom( true );
-    part->rotate( 180, true );
+    part->rotate_deg( 180 );
     k.append_part( part );
 
     if( finish )
     {
         part = make_toes_atom();
-        part->rotate( -60, true );
+        part->rotate_deg( -60 );
         k.append_part( part );
     }
 }
@@ -93,25 +93,25 @@ void BWCNC::LizardGrid::make_cheek2cheek_down_through_knees( BWCNC::PartContext 
     BWCNC::Part * part = nullptr;
 
     part = make_cheek_atom();
-    part->rotate( -60, true );
+    part->rotate_deg( -60 );
     k.append_part( part );
 
     part = make_knees_atom( true );
-    part->rotate( 180, true );
+    part->rotate_deg( 180 );
     k.append_part( part );
 
     part = make_knees_atom();
-    part->rotate( 60, true );
+    part->rotate_deg( 60 );
     k.append_part( part );
 
     part = make_cheek_atom( true );
-    part->rotate( 180, true );
+    part->rotate_deg( 180 );
     k.append_part( part );
 
     if( finish )
     {
         part = make_cheek_atom();
-        part->rotate( -60, true );
+        part->rotate_deg( -60 );
         k.append_part( part );
     }
 }
@@ -121,25 +121,25 @@ void BWCNC::LizardGrid::make_knee2knee_down_through_toes( BWCNC::PartContext & k
     BWCNC::Part * part = nullptr;
 
     part = make_knees_atom();
-    part->rotate( -60, true );
+    part->rotate_deg( -60 );
     k.append_part( part );
 
     part = make_toes_atom( true );
-    part->rotate( 180, true );
+    part->rotate_deg( 180 );
     k.append_part( part );
 
     part = make_toes_atom();
-    part->rotate( 60, true );
+    part->rotate_deg( 60 );
     k.append_part( part );
 
     part = make_knees_atom( true );
-    part->rotate( 180, true );
+    part->rotate_deg( 180 );
     k.append_part( part );
 
     if( finish )
     {
         part = make_knees_atom();
-        part->rotate( -60, true );
+        part->rotate_deg( -60 );
         k.append_part( part );
     }
 }
@@ -192,17 +192,17 @@ void BWCNC::LizardGrid::fill_partctx_with_grid( BWCNC::PartContext & k )
         for( int r = 0; r < m_rows; r++ )
         {
             p = make_toes_atom();
-            p->rotate( 60, true );
+            p->rotate_deg( 60 );
             k.append_part( p );
             addrowspacing( k );
 
             p = make_knees_atom();
-            p->rotate( -60, true );
+            p->rotate_deg( -60 );
             k.append_part( p );
             addrowspacing( k );
         }
         p = make_toes_atom(); // toes begin *and* end it
-        p->rotate( 60, true );
+        p->rotate_deg( 60 );
         k.append_part( p );
         addrowspacing( k );
 
@@ -213,17 +213,17 @@ void BWCNC::LizardGrid::fill_partctx_with_grid( BWCNC::PartContext & k )
         for( int r = 0; r < m_rows; r++ )
         {
             p = make_knees_atom();
-            p->rotate( 60, true );
+            p->rotate_deg( 60 );
             k.append_part( p );
             addrowspacing( k );
 
             p = make_cheek_atom();
-            p->rotate( -60, true );
+            p->rotate_deg( -60 );
             k.append_part( p );
             addrowspacing( k );
         }
         p = make_knees_atom();  // knees begin *and* end it
-        p->rotate( 60, true );
+        p->rotate_deg( 60 );
         k.append_part( p );
         addrowspacing( k );
 
@@ -236,17 +236,17 @@ void BWCNC::LizardGrid::fill_partctx_with_grid( BWCNC::PartContext & k )
             for( int r = 0; r < m_rows; r++ )
             {
                 p = make_cheek_atom();
-                p->rotate( 60, true );
+                p->rotate_deg( 60 );
                 k.append_part( p );
                 addrowspacing( k );
 
                 p = make_toes_atom();
-                p->rotate( -60, true );
+                p->rotate_deg( -60 );
                 k.append_part( p );
                 addrowspacing( k );
             }
             p = make_cheek_atom();  // cheeks begin *and* end it
-            p->rotate( 60, true );
+            p->rotate_deg( 60 );
             k.append_part( p );
             addrowspacing( k );
         }
